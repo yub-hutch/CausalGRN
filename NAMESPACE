@@ -3,6 +3,7 @@
 export(adj2igraph)
 export(format_grnboost2)
 export(get_edge_index)
+export(infer_causalgrn)
 export(infer_skeleton_from_perturbed)
 export(infer_skeleton_from_wildtype)
 export(parallel_cor)

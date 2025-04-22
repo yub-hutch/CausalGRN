@@ -17,5 +17,6 @@ RoxygenNote: 7.3.2
 Imports: 
     igraph,
     iterpc,
+    matrixTests,
     pbmcapply,
     pcalg
