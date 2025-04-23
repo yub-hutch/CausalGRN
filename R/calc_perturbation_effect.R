@@ -75,13 +75,14 @@ calc_perturbation_effect <- function(Y, group, ncores) {
     # Do by gene chunks
     chunk_size <- 200
     chunks <- split(seq_len(ngene), f = ceiling(seq_len(ngene) / chunk_size))
-    pb <- pbmcapply::progressBar(min = 0, max = length(chunks))
+    message(paste0('Number of batches: ', length(chunks)))
+    message('------------------------------------------------------')
     stat <- do.call(rbind, lapply(seq_along(chunks), function(i) {
-      setTxtProgressBar(pb = pb, value = i)
+      message(paste0('Batch ', i))
       cols <- chunks[[i]]
       sub_Y <- Y[, cols, drop = FALSE] # Read data from disk to memory
       wt <- sub_Y[group == 'WT', , drop = FALSE]
-      sub_stat <- do.call(rbind, parallel::mclapply(kos, function(ko) {
+      sub_stat <- do.call(rbind, pbmcapply::pbmclapply(kos, function(ko) {
         ko_col <- match(ko, genes)
         ko_expr_wt <- Y[group == 'WT', ko_col]
         ko_expr_all <- Y[, ko_col]
@@ -102,7 +103,6 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       }, mc.cores = ncores))
       return(sub_stat)
     }))
-    close(pb)
   }
   stat$wilcox_adj_pv = p.adjust(stat$wilcox_pv, method = 'BH')
   stat$t_adj_pv = p.adjust(stat$t_pv, method = 'BH')
