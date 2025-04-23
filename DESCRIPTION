@@ -20,5 +20,6 @@ Imports:
     igraph,
     iterpc,
     matrixTests,
+    parallel,
     pbmcapply,
     pcalg

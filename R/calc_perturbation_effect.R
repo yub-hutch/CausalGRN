@@ -75,18 +75,24 @@ calc_perturbation_effect <- function(Y, group, ncores) {
     # Do by gene chunks
     chunk_size <- 200
     chunks <- split(seq_len(ngene), f = ceiling(seq_len(ngene) / chunk_size))
-    stat <- do.call(rbind, lapply(chunks, function(cols) {
-      sub_Y <- Y[, cols] # Read data from disk to memory
-      wt <- sub_Y[group == 'WT', ]
-      sub_stat <- do.call(rbind, pbmcapply::pbmclapply(kos, function(ko) {
-        pt <- sub_Y[group == ko, ]
+    pb <- pbmcapply::progressBar(min = 0, max = length(chunks))
+    stat <- do.call(rbind, lapply(seq_along(chunks), function(i) {
+      setTxtProgressBar(pb = pb, value = i)
+      cols <- chunks[[i]]
+      sub_Y <- Y[, cols, drop = FALSE] # Read data from disk to memory
+      wt <- sub_Y[group == 'WT', , drop = FALSE]
+      sub_stat <- do.call(rbind, parallel::mclapply(kos, function(ko) {
+        ko_col <- match(ko, genes)
+        ko_expr_wt <- Y[group == 'WT', ko_col]
+        ko_expr_all <- Y[, ko_col]
+        pt <- sub_Y[group == ko, , drop = FALSE]
         diffs <- colMeans(pt) - colMeans(wt)
         pooled_sds <- apply(rbind(wt, pt), 2, sd)
         cds <- diffs / pooled_sds
         wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = F, correct = T)$pvalue
         t_pvs <- matrixTests::col_t_welch(wt, pt)$pvalue
-        cors_wt <- c(cor(wt[, ko], wt))
-        cors_all <- c(cor(Y[, ko], Y))
+        cors_wt <- c(cor(ko_expr_wt, wt))
+        cors_all <- c(cor(ko_expr_all, sub_Y))
         dplyr::tibble(
           ko = ko, gene = genes[cols],
           diff = diffs, cd = cds,
@@ -96,6 +102,7 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       }, mc.cores = ncores))
       return(sub_stat)
     }))
+    close(pb)
   }
   stat$wilcox_adj_pv = p.adjust(stat$wilcox_pv, method = 'BH')
   stat$t_adj_pv = p.adjust(stat$t_pv, method = 'BH')
