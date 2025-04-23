@@ -160,7 +160,7 @@ perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, n
 #' @export
 infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, G = NULL, max_order = 1, hub_genes = NULL, max_order_hub = NULL) {
   # Check group
-  stopifnot(nrow(Y) == length(group))
+  stopifnot(identical(rownames(Y), names(group)))
   stopifnot('group must contain wild-type cells labeled as WT' = 'WT' %in% group)
   stopifnot('Remove groups with less than 50 cells' = all(table(group) >= 50))
   # Check initial adjacency matrix
