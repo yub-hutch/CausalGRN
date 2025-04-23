@@ -3,8 +3,7 @@
 #' Infers causal GRN by directing edges based on differential expression caused by perturbations.
 #'
 #' @param graph Initial igraph object.
-#' @param Y Matrix of normalized scRNA-seq data of wild-type and perturbed cells.
-#' @param group Named vector of cell label: 'WT' for wild-type cells, perturbed gene for perturbed cell.
+#' @param stat Perturbation effect from \code{\link{calc_perturbation_effect}}.
 #' @param alpha Numeric representing DE Q-value threshold.
 #' @param ncores Number of cores for parallel computation.
 #' @param conservative Logical indicating whether to make conservative inference (Default is \code{TRUE}).
@@ -31,10 +30,14 @@
 #'   ncores = 2,
 #'   max_order = 1
 #' )
-#' cgrn <- infer_causalgrn(
-#'   graph = skel$graph,
+#' stat <- calc_perturbation_effect(
 #'   Y = data,
 #'   group = group,
+#'   ncores = 2
+#' )
+#' cgrn <- infer_causalgrn(
+#'   graph = skel$graph,
+#'   stat = stat,
 #'   alpha = 0.05,
 #'   ncores = 2,
 #'   max_order = 2
@@ -44,20 +47,14 @@
 #'
 #' @return igraph object.
 #' @export
-infer_causalgrn <- function(graph, Y, group, alpha, ncores, conservative = TRUE, max_order = 1, max_dist = Inf, evidence = 1) {
-  stopifnot(!is.null(igraph::V(graph)$name))
-  message('Calculating adjusted p-values of differential expression ...')
-  kos <- setdiff(group, 'WT')
-  wt <- Y[group == 'WT', ]
-  pval_mat <- do.call(rbind, pbmcapply::pbmclapply(kos, function(ko) {
-    pt <- Y[group == ko, ]
-    wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = FALSE, correct = TRUE)$pvalue
-    t_pvs = matrixTests::col_t_welch(wt, pt)$pvalue
-    pmax(wilcox_pvs, t_pvs)
-  }, mc.cores = ncores))
-  dimnames(pval_mat) <- list(kos, colnames(Y))
-  adj_pv_mat <- matrix(p.adjust(c(pval_mat), method = 'BH'), nrow(pval_mat), ncol(pval_mat), dimnames = dimnames(pval_mat))
-  message('Directing edges ...')
+infer_causalgrn <- function(graph, stat, alpha, ncores, conservative = TRUE, max_order = 1, max_dist = Inf, evidence = 1) {
+  kos <- unique(stat$ko)
+  genes <- unique(stat$gene)
+  stopifnot(all(kos %in% genes))
+  stopifnot(nrow(stat) == length(kos) * length(genes))
+  stopifnot(setequal(genes, igraph::V(graph)$name))
+  # Extract DE adjusted p-values
+  adj_pv_mat <- as.matrix(stats::xtabs(adj_pv ~ ko + gene, data = stat))
   # Order 1 orientation
   edges_to_delete <- c()
   visited_kos <- c()
@@ -93,7 +90,7 @@ infer_causalgrn <- function(graph, Y, group, alpha, ncores, conservative = TRUE,
   }
   # Order 2 orientation
   if (max_order == 2) {
-    edges_to_delete = c()
+    edges_to_delete <- c()
     for (ko in kos) {
       children <- setdiff(
         igraph::neighbors(graph, ko, mode = 'out')$name,
@@ -112,7 +109,7 @@ infer_causalgrn <- function(graph, Y, group, alpha, ncores, conservative = TRUE,
           next
         }
         for (order2_node in order2_nodes) {
-          order2_adj_pv = adj_pv_mat[ko, order2_node]
+          order2_adj_pv <- adj_pv_mat[ko, order2_node]
           if (order2_adj_pv < alpha) {
             distance_wo_child <- igraph::distances(
               graph = igraph::delete_vertices(graph, child),

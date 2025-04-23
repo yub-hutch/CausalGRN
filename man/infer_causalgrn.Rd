@@ -6,8 +6,7 @@
 \usage{
 infer_causalgrn(
   graph,
-  Y,
-  group,
+  stat,
   alpha,
   ncores,
   conservative = TRUE,
@@ -19,9 +18,7 @@ infer_causalgrn(
 \arguments{
 \item{graph}{Initial igraph object.}
 
-\item{Y}{Matrix of normalized scRNA-seq data of wild-type and perturbed cells.}
-
-\item{group}{Named vector of cell label: 'WT' for wild-type cells, perturbed gene for perturbed cell.}
+\item{stat}{Perturbation effect from \code{\link{calc_perturbation_effect}}.}
 
 \item{alpha}{Numeric representing DE Q-value threshold.}
 
@@ -60,10 +57,14 @@ skel <- infer_skeleton_from_perturbed(
   ncores = 2,
   max_order = 1
 )
-cgrn <- infer_causalgrn(
-  graph = skel$graph,
+stat <- calc_perturbation_effect(
   Y = data,
   group = group,
+  ncores = 2
+)
+cgrn <- infer_causalgrn(
+  graph = skel$graph,
+  stat = stat,
   alpha = 0.05,
   ncores = 2,
   max_order = 2
