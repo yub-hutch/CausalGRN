@@ -8,7 +8,6 @@ infer_causalgrn(
   graph,
   stat,
   alpha,
-  ncores,
   conservative = TRUE,
   max_order = 1,
   max_dist = Inf,
@@ -21,8 +20,6 @@ infer_causalgrn(
 \item{stat}{Perturbation effect from \code{\link{calc_perturbation_effect}}.}
 
 \item{alpha}{Numeric representing DE Q-value threshold.}
-
-\item{ncores}{Number of cores for parallel computation.}
 
 \item{conservative}{Logical indicating whether to make conservative inference (Default is \code{TRUE}).}
 
@@ -66,7 +63,6 @@ cgrn <- infer_causalgrn(
   graph = skel$graph,
   stat = stat,
   alpha = 0.05,
-  ncores = 2,
   max_order = 2
 )
 plot(cgrn)

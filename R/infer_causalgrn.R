@@ -5,7 +5,6 @@
 #' @param graph Initial igraph object.
 #' @param stat Perturbation effect from \code{\link{calc_perturbation_effect}}.
 #' @param alpha Numeric representing DE Q-value threshold.
-#' @param ncores Number of cores for parallel computation.
 #' @param conservative Logical indicating whether to make conservative inference (Default is \code{TRUE}).
 #' @param max_order Integer representing the maximum order for DE descendant inference. Can be 1 or 2. Default is 1.
 #' @param max_dist Integer representing the maximum distance allowed for a perturbed gene to cause DE on another gene. Ignore for `max_order = 1`. Default is Inf.
@@ -39,7 +38,6 @@
 #'   graph = skel$graph,
 #'   stat = stat,
 #'   alpha = 0.05,
-#'   ncores = 2,
 #'   max_order = 2
 #' )
 #' plot(cgrn)
@@ -47,7 +45,7 @@
 #'
 #' @return igraph object.
 #' @export
-infer_causalgrn <- function(graph, stat, alpha, ncores, conservative = TRUE, max_order = 1, max_dist = Inf, evidence = 1) {
+infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order = 1, max_dist = Inf, evidence = 1) {
   kos <- unique(stat$ko)
   genes <- unique(stat$gene)
   stopifnot(all(kos %in% genes))
