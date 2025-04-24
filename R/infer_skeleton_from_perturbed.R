@@ -228,6 +228,8 @@ infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, G = NULL, max
       message('CI tests are finished before reaching specified max order.')
       break
     }
+    rm(res)
+    gc()
     order <- order + 1
   }
   graph <- adj2igraph(G = G, pMax = pMax, chisqMin = chisqMin)

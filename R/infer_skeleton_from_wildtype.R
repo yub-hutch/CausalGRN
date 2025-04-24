@@ -208,6 +208,8 @@ infer_skeleton_from_wildtype <- function(Y, alpha, ncores, G = NULL, max_order =
       message('CI tests are finished before reaching specified max order.')
       break
     }
+    rm(res)
+    gc()
     order <- order + 1
   }
   graph <- adj2igraph(G = G, pMax = pMax, chisqMin = chisqMin)
