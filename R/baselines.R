@@ -33,11 +33,12 @@ run_pc <- function(wt, alpha) {
   }
   # Delete unwanted edge attribute
   if ('weight' %in% igraph::edge_attr_names(graph)) {
-    graph <- igraph::delete_edge_attr(graph, 'weight')
+    graph <- igraph::delete_edge_attr(graph, name = 'weight')
   }
-  # Add pMax attribute to edges
+  # Add pMax & score attribute to edges
   edges <- do.call(rbind, strsplit(igraph::as_ids(igraph::E(graph)), '\\|'))
   igraph::E(graph)$pMax <- raw@pMax[edges]
+  igraph::E(graph)$score <- 1 - raw@pMax[edges]
   return(graph)
 }
 
@@ -55,7 +56,8 @@ run_ges <- function(wt, verbose = FALSE) {
   raw <- pcalg::ges(score = new('GaussL0penObsScore', wt), verbose = verbose)
   # Convert to igraph object
   amat <- as(as(raw$essgraph, 'graphNEL'), 'matrix') > 0
-  graph <- igraph::graph_from_adjacency_matrix(amat)
+  graph <- igraph::graph_from_adjacency_matrix(amat, mode = 'directed', weighted = NULL, diag = FALSE)
+  igraph::E(graph)$score <- 1
   return(graph)
 }
 
@@ -83,8 +85,9 @@ run_gies <- function(wt, pts, verbose = FALSE) {
   raw <- pcalg::gies(score, verbose = verbose)
   # Convert to igraph object
   amat <- as(as(raw$essgraph, 'graphNEL'), 'matrix') > 0
-  g <- igraph::graph_from_adjacency_matrix(amat)
-  return(g)
+  graph <- igraph::graph_from_adjacency_matrix(amat, mode = 'directed', weighted = NULL, diag = FALSE)
+  igraph::E(graph)$score <- 1
+  return(graph)
 }
 
 
@@ -95,12 +98,32 @@ run_gies <- function(wt, pts, verbose = FALSE) {
 #' @param wt scRNA-seq matrix of wild-type cells.
 #' @param ncores Number of cores.
 #' @param verbose Whether to print training details (default is FALSE).
-#' @return Importance matrix.
+#' @return igraph object.
 #' @export
 run_genie3 <- function(wt, ncores, verbose = FALSE) {
   w <- GENIE3::GENIE3(t(wt), nCores = ncores, verbose = verbose)
   w <- w[colnames(wt), colnames(wt)]
-  return(w)
+  graph <- igraph::graph_from_adjacency_matrix(abs(w), mode = 'directed', weighted = TRUE, diag = FALSE)
+  igraph::E(graph)$score <- igraph::E(graph)$weight
+  graph <- igraph::delete_edge_attr(graph, name = 'weight')
+  return(graph)
+}
+
+
+#' Build correlation based GRN
+#'
+#' Build GRN based on marginal correlations between genes.
+#'
+#' @param Y
+#' @return igraph object.
+#' @export
+run_cor <- function(Y) {
+  w <- cor(Y)
+  diag(w) <- 0
+  graph <- igraph::graph_from_adjacency_matrix(abs(w), mode = 'directed', weighted = TRUE, diag = FALSE)
+  igraph::E(graph)$score <- igraph::E(graph)$weight
+  graph <- igraph::delete_edge_attr(graph, name = 'weight')
+  return(graph)
 }
 
 
@@ -110,12 +133,15 @@ run_genie3 <- function(wt, ncores, verbose = FALSE) {
 #'
 #' @param file GRNBoost2 output.
 #' @param genes Gene names.
-#' @return Importance matrix.
+#' @return igraph object.
 #' @export
 format_grnboost2 <- function(file, genes) {
   df <- read.csv(file, header = TRUE, stringsAsFactors = FALSE)
   raw <- with(df, tapply(importance, INDEX = list(TF, target), FUN = mean, default = 0))
   w <- matrix(0, length(genes), length(genes), dimnames = list(genes, genes))
   w[rownames(raw), colnames(raw)] <- raw
-  return(w)
+  graph <- igraph::graph_from_adjacency_matrix(abs(w), mode = 'directed', weighted = TRUE, diag = FALSE)
+  igraph::E(graph)$score <- igraph::E(graph)$weight
+  graph <- igraph::delete_edge_attr(graph, name = 'weight')
+  return(graph)
 }
