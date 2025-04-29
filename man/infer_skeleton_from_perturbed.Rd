@@ -55,16 +55,16 @@ group <- c(rep('WT', n), rep('x', n))
 y <- rnorm(2 * n, mean = x, sd = 1)
 z <- rnorm(2 * n, mean = y, sd = 1)
 data <- cbind(x = x, y = y, z = z)
-res <- infer_skeleton_from_perturbed(
+skel <- infer_skeleton_from_perturbed(
   Y = data,
   group = group,
   alpha = 1e-3,
   ncores = 2,
   max_order = 1
 )
-print(igraph::as_data_frame(res$graph))
-plot(res$graph)
-print(res$sepSet[[1]][[3]])
+print(igraph::as_data_frame(skel$graph))
+plot(skel$graph)
+get_sepset(skel, 'x', 'z')
 
 # With hub genes
 # Hub genes PC 1-3, x_i -> PC_j -> z
@@ -87,7 +87,7 @@ colnames(data) <- c(paste0('x', 1:5), paste0('PC', 1:3), 'z')
 G <- matrix(TRUE, ncol(data), ncol(data), dimnames = list(colnames(data), colnames(data)))
 diag(G) <- FALSE
 G[paste0('PC', 1:3), paste0('PC', 1:3)] <- FALSE
-res <- infer_skeleton_from_perturbed(
+skel <- infer_skeleton_from_perturbed(
   Y = data,
   group = group,
   alpha = 1e-6,
@@ -96,5 +96,5 @@ res <- infer_skeleton_from_perturbed(
   hub_genes = paste0('PC', 1:3),
   max_order_hub = 3
 )
-plot(res$graph, layout = igraph::layout_with_kk)
+plot(skel$graph, layout = igraph::layout_with_kk)
 }

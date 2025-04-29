@@ -109,15 +109,15 @@ perform_ci_test_from_wildtype <- function(G, order, max_order, hub_index, C, n, 
 #' y <- rnorm(n, mean = x, sd = 1)
 #' z <- rnorm(n, mean = y, sd = 1)
 #' data <- cbind(x = x, y = y, z = z)
-#' res <- infer_skeleton_from_wildtype(
+#' skel <- infer_skeleton_from_wildtype(
 #'   Y = data,
 #'   alpha = 0.05,
 #'   ncores = 2,
 #'   max_order = 1
 #' )
-#' print(igraph::as_data_frame(res$graph))
-#' plot(res$graph)
-#' print(res$sepSet[[1]][[3]])
+#' print(igraph::as_data_frame(skel$graph))
+#' plot(skel$graph)
+#' get_sepset(skel, 'x', 'z')
 #'
 #' # With hub genes
 #' # Hub genes PC 1-3, x_i -> PC_j -> z
@@ -137,7 +137,7 @@ perform_ci_test_from_wildtype <- function(G, order, max_order, hub_index, C, n, 
 #' G <- matrix(TRUE, ncol(data), ncol(data), dimnames = list(colnames(data), colnames(data)))
 #' diag(G) <- FALSE
 #' G[paste0('PC', 1:3), paste0('PC', 1:3)] <- FALSE
-#' res <- infer_skeleton_from_wildtype(
+#' skel <- infer_skeleton_from_wildtype(
 #'   Y = data,
 #'   alpha = 1e-3,
 #'   ncores = 2,
@@ -145,7 +145,7 @@ perform_ci_test_from_wildtype <- function(G, order, max_order, hub_index, C, n, 
 #'   hub_genes = paste0('PC', 1:3),
 #'   max_order_hub = 3
 #' )
-#' plot(res$graph, layout = igraph::layout_with_kk)
+#' plot(skel$graph, layout = igraph::layout_with_kk)
 #' @export
 infer_skeleton_from_wildtype <- function(Y, alpha, ncores, G = NULL, max_order = 1, hub_genes = NULL, max_order_hub = NULL) {
   # Check initial adjacency matrix

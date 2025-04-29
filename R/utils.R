@@ -53,3 +53,21 @@ adj2igraph <- function(G, pMax, chisqMin) {
   igraph::E(graph)$chisqMin = chisqMin[edges]
   return(graph)
 }
+
+
+#' Get separation set of two genes
+#'
+#' Extract separation set of two genes from graph skeleton
+#'
+#' @param skel See \code{\link{infer_skeleton_from_wildtype}} and \code{\link{infer_skeleton_from_perturbed}}.
+#' @param g1 Gene name.
+#' @param g2 Gene name.
+#' @return Seperation set.
+#' @export
+get_sepset <- function(skel, g1, g2) {
+  nodes <- igraph::V(skel$graph)$name
+  i <- match(g1, nodes)
+  j <- match(g2, nodes)
+  S <- skel$sepSet[[i]][[j]]
+  return(nodes[S])
+}
