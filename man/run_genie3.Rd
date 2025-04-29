@@ -14,7 +14,7 @@ run_genie3(wt, ncores, verbose = FALSE)
 \item{verbose}{Whether to print training details (default is FALSE).}
 }
 \value{
-Importance matrix.
+igraph object.
 }
 \description{
 Run GENIE3 algorithm and return an importance matrix.

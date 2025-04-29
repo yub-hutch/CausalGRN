@@ -114,7 +114,7 @@ run_genie3 <- function(wt, ncores, verbose = FALSE) {
 #'
 #' Build GRN based on marginal correlations between genes.
 #'
-#' @param Y
+#' @param Y Matrix of normalized scRNA-seq data.
 #' @return igraph object.
 #' @export
 run_cor <- function(Y) {

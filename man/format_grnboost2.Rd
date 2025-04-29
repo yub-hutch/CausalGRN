@@ -12,7 +12,7 @@ format_grnboost2(file, genes)
 \item{genes}{Gene names.}
 }
 \value{
-Importance matrix.
+igraph object.
 }
 \description{
 Reads GRNBoost2 output csv file and returns importance matrix.
