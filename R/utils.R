@@ -69,5 +69,9 @@ get_sepset <- function(skel, g1, g2) {
   i <- match(g1, nodes)
   j <- match(g2, nodes)
   S <- skel$sepSet[[i]][[j]]
-  return(nodes[S])
+  if (is.null(S)) {
+    return(NULL)
+  } else {
+    return(nodes[S])
+  }
 }
