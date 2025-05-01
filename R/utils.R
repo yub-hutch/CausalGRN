@@ -11,7 +11,7 @@ parallel_cor <- function(mat, ncores) {
     return(cor(mat))
   }
   split_cols <- split(x = seq_len(ncol(mat)), f = cut(seq_len(ncol(mat)), ncores, labels = FALSE))
-  cors <- parallel::mcmapply(function(cols) cor(mat[, cols], mat), split_cols, SIMPLIFY = F, mc.cores = ncores)
+  cors <- pbmcapply::pbmclapply(split_cols, function(cols) cor(mat[, cols], mat), mc.cores = ncores)
   return(do.call(rbind, cors))
 }
 
@@ -65,6 +65,7 @@ adj2igraph <- function(G, pMax, chisqMin) {
 #' @return Seperation set.
 #' @export
 get_sepset <- function(skel, g1, g2) {
+  stopifnot(!is.null(skel$sepSet))
   nodes <- igraph::V(skel$graph)$name
   i <- match(g1, nodes)
   j <- match(g2, nodes)

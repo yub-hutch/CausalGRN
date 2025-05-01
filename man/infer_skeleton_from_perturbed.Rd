@@ -12,7 +12,8 @@ infer_skeleton_from_perturbed(
   G = NULL,
   max_order = 1,
   hub_genes = NULL,
-  max_order_hub = NULL
+  max_order_hub = NULL,
+  sepset = TRUE
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ infer_skeleton_from_perturbed(
 \item{hub_genes}{Optional character vector of hub gene names.}
 
 \item{max_order_hub}{Maximum conditioning set size for hub genes.}
+
+\item{sepset}{Return separation set or not (default is \code{TRUE}).}
 }
 \value{
 A list with:

@@ -61,22 +61,36 @@ perform_ci_test_from_wildtype <- function(G, order, max_order, hub_index, C, n, 
     }
   }, i = edge_index[, 1], j = edge_index[, 2], SIMPLIFY = F, mc.cores = ncores)
   message('Updating graph ...')
-  pb <- pbmcapply::progressBar(min = 0, max = length(res))
-  for (k in seq_along(res)) {
-    setTxtProgressBar(pb = pb, value = k)
-    i <- edge_index[k, 1]
-    j <- edge_index[k, 2]
-    if (!(res[[k]]$order_reached)) {
-      pMax[i, j] <- pMax[j, i] <- max(pMax[i, j], res[[k]]$pmax)
-      chisqMin[i, j] <- chisqMin[j, i] <- min(chisqMin[i, j], res[[k]]$chisqmin)
-      if (res[[k]]$pmax > alpha) {
-        G[i, j] <- G[j, i] <- FALSE
-        sepSet[[i]][[j]] <- sepSet[[j]][[i]] <- res[[k]]$sepset
+  needs_update <- !vapply(res, `[[`, logical(1), "order_reached")
+  if (any(needs_update)) {
+    i <- edge_index[needs_update, 1]
+    j <- edge_index[needs_update, 2]
+    p <- vapply(res[needs_update], `[[`, numeric(1), "pmax")
+    chi <- vapply(res[needs_update], `[[`, numeric(1), "chisqmin")
+    idx <- cbind(i, j)
+    mirror_idx <- idx[, 2:1, drop = FALSE]
+    pMax[idx] <- pMax[mirror_idx] <- pmax(pMax[idx], p)
+    chisqMin[idx] <- chisqMin[mirror_idx] <- pmin(chisqMin[idx], chi)
+    to_remove <- p > alpha
+    if (any(to_remove)) {
+      rem <- idx[to_remove, , drop = FALSE]
+      mirror_rem  <- rem[, 2:1, drop = FALSE]
+      G[rem] <- G[mirror_rem] <- FALSE
+      if (!is.null(sepSet)) {
+        pos <- which(needs_update)[to_remove]
+        pb <- pbmcapply::progressBar(min = 0, max = length(pos))
+        for (k in seq_along(pos)) {
+          setTxtProgressBar(pb, value = k)
+          a   <- rem[k, 1]
+          b   <- rem[k, 2]
+          sep <- res[[pos[k]]]$sepset
+          sepSet[[a]][[b]] <- sepSet[[b]][[a]] <- sep
+        }
+        close(pb)
       }
     }
   }
-  close(pb)
-  done <- all(sapply(res, function(x) x$order_reached))
+  done <- !any(needs_update)
   return(list(G = G, pMax = pMax, chisqMin = chisqMin, sepSet = sepSet, done = done))
 }
 
@@ -93,6 +107,7 @@ perform_ci_test_from_wildtype <- function(G, order, max_order, hub_index, C, n, 
 #' @param max_order Maximum conditioning set size for non-hub genes.
 #' @param hub_genes Optional character vector of hub gene names.
 #' @param max_order_hub Maximum conditioning set size for hub genes.
+#' @param sepset Return separation set or not (default is \code{TRUE}).
 #'
 #' @return A list with:
 #' \describe{
@@ -147,7 +162,7 @@ perform_ci_test_from_wildtype <- function(G, order, max_order, hub_index, C, n, 
 #' )
 #' plot(skel$graph, layout = igraph::layout_with_kk)
 #' @export
-infer_skeleton_from_wildtype <- function(Y, alpha, ncores, G = NULL, max_order = 1, hub_genes = NULL, max_order_hub = NULL) {
+infer_skeleton_from_wildtype <- function(Y, alpha, ncores, G = NULL, max_order = 1, hub_genes = NULL, max_order_hub = NULL, sepset = TRUE) {
   # Check initial adjacency matrix
   genes = colnames(Y)
   if (is.null(G)) {
@@ -177,7 +192,11 @@ infer_skeleton_from_wildtype <- function(Y, alpha, ncores, G = NULL, max_order =
   pMax <- chisqMin <- matrix(NA, length(genes), length(genes), dimnames = list(genes, genes))
   pMax[G] <- -1
   chisqMin[G] <- Inf
-  sepSet <- lapply(seq_along(genes), function(j) vector('list', length(genes)))
+  if (sepset) {
+    sepSet <- lapply(seq_along(genes), function(j) vector('list', length(genes)))
+  } else {
+    sepSet <- NULL
+  }
   # Perform CI test
   order <- 0
   while (any(G) && (order <= max_order_hub)) {
