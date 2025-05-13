@@ -46,6 +46,7 @@ fit_expression_model <- function(Y, group, graph, ncores) {
     }
     return(coef)
   }, mc.cores = ncores)
+  names(models) <- genes
   return(models)
 }
 
