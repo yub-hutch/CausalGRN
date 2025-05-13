@@ -204,10 +204,10 @@ infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, G = NULL, max
   message('Initializing CI test statistics ...')
   labels <- setdiff(group, 'WT')
   ns <- sapply(labels, function(label) sum(group == label))
-  if (length(labels) >= ncores) {
-    Cs <- pbmcapply::pbmclapply(labels, function(label) cor(Y[group == label, ]), mc.cores = ncores)
-  } else {
+  if ((length(labels) < ncores) && (ncol(Y) > 1e3)) {
     Cs <- sapply(labels, simplify = F, function(label) parallel_cor(Y[group == label, ], ncores = ncores))
+  } else {
+    Cs <- pbmcapply::pbmclapply(labels, function(label) cor(Y[group == label, ]), mc.cores = ncores)
   }
   pMax <- chisqMin <- matrix(NA, length(genes), length(genes), dimnames = list(genes, genes))
   pMax[G] <- -1
