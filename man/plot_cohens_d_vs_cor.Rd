@@ -4,10 +4,12 @@
 \alias{plot_cohens_d_vs_cor}
 \title{Scatter plot of Correlation versus Cohens' D}
 \usage{
-plot_cohens_d_vs_cor(stat)
+plot_cohens_d_vs_cor(stat, cor = c("WT", "All"))
 }
 \arguments{
 \item{stat}{Calculated from \code{\link{calc_perturbation_effect}}.}
+
+\item{cor}{Correlation across "WT" or "All" cells.}
 }
 \value{
 ggplot object.

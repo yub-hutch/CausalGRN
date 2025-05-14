@@ -4,10 +4,12 @@
 \alias{simulate_random_cor}
 \title{Monte‑Carlo check of the random‑null correlation}
 \usage{
-simulate_random_cor(group_sizes, test_idx, n_genes, n_runs, ncores)
+simulate_random_cor(group_sizes, wt_idx, test_idx, n_genes, n_runs, ncores)
 }
 \arguments{
-\item{group_sizes}{Integer vector of cell counts (WT first).}
+\item{group_sizes}{Integer vector of cell counts of each group.}
+
+\item{wt_idx}{Integer index of the WT group.}
 
 \item{test_idx}{Integer index of the held‑out KO.}
 
@@ -26,9 +28,8 @@ and returns the vector of sample correlations. The empirical mean should hover a
 }
 \examples{
 group_sizes <- c(1000, 100, 100)
-test_idx <- 3
-r0 <- calc_random_cor(group_sizes, test_idx)
-emp_r0s <- simulate_random_cor(group_sizes, test_idx, n_genes = 1000, n_runs = 100, ncores = 4)
+r0 <- calc_random_cor(group_sizes, wt_idx = 1, test_idx = 3)
+emp_r0s <- simulate_random_cor(group_sizes, wt_idx = 1, test_idx = 3, n_genes = 1000, n_runs = 100, ncores = 4)
 cat(sprintf("ρ₀ analytic = \%.3f\n", r0))
 cat(sprintf("Empirical r = \%.3f  (sd = \%.3f)\n", mean(emp_r0s), sd(emp_r0s)))
 }

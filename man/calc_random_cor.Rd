@@ -4,10 +4,12 @@
 \alias{calc_random_cor}
 \title{Random‑null correlation for a leave‑one‑group‑out baseline}
 \usage{
-calc_random_cor(group_sizes, test_idx)
+calc_random_cor(group_sizes, wt_idx, test_idx)
 }
 \arguments{
-\item{group_sizes}{Integer vector of group (cell) counts. The first element must be WT; the rest are KO conditions.}
+\item{group_sizes}{Integer vector of group (cell) counts.}
+
+\item{wt_idx}{Integer index of the WT group.}
 
 \item{test_idx}{Integer index of the KO group that is held out.}
 }
@@ -16,11 +18,10 @@ The analytic random‑null correlation.
 }
 \description{
 Return the analytic (population‑level) Pearson correlation between the true differential expression
-(test‑KO – WT) and the trivial baseline that uses the weighted mean of all training cells (WT + remaining KOs) as a predictor.
+(test‑KO – WT) and the trivial baseline that uses the weighted mean of all training KO cells as a predictor.
 }
 \examples{
 # Three groups: WT = 1000 cells, KO‑1 = 100, KO‑2 = 100 (held out)
 group_sizes <- c(1000, 100, 100)
-test_idx <- 3
-calc_random_cor(group_sizes, test_idx)
+calc_random_cor(group_sizes, wt_idx = 1, test_idx = 3)
 }
