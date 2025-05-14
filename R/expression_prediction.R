@@ -50,6 +50,7 @@ fit_expression_model <- function(Y, group, graph, ncores) {
   return(models)
 }
 
+
 #' Apply Expression Model
 #'
 #' Predict gene expression for test cells using fitted models.
