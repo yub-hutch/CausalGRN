@@ -9,6 +9,7 @@ infer_skeleton_from_perturbed(
   group,
   alpha,
   ncores,
+  mixgroup = TRUE,
   G = NULL,
   max_order = 1,
   hub_genes = NULL,
@@ -24,6 +25,8 @@ infer_skeleton_from_perturbed(
 \item{alpha}{Significance level for CI tests.}
 
 \item{ncores}{Number of CPU cores for parallel processing.}
+
+\item{mixgroup}{Whether calculating correlation between KO gene A and gene B by combining WT and A-KO cells.}
 
 \item{G}{Optional initial adjacency matrix; defaults to a fully connected graph without self-loops.}
 

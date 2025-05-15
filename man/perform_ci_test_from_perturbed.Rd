@@ -11,6 +11,7 @@ perform_ci_test_from_perturbed(
   hub_index,
   Cs,
   ns,
+  ko_idx,
   alpha,
   pMax,
   chisqMin,
@@ -30,6 +31,8 @@ perform_ci_test_from_perturbed(
 \item{Cs}{Correlation matrices of the variables within each group.}
 
 \item{ns}{Sample sizes of each group.}
+
+\item{ko_idx}{Index of KO genes.}
 
 \item{alpha}{Significance level for the CI tests.}
 

@@ -10,6 +10,7 @@
 #' @param hub_index Vector of node indices considered as hubs.
 #' @param Cs Correlation matrices of the variables within each group.
 #' @param ns Sample sizes of each group.
+#' @param ko_idx Index of KO genes.
 #' @param alpha Significance level for the CI tests.
 #' @param pMax Matrix to store the maximum p-values for each edge.
 #' @param chisqMin Matrix to store the minimum chi-square statistics for each edge.
@@ -25,7 +26,7 @@
 #'   \item{done}{Logical indicating whether all edges reached the specified order.}
 #' }
 #' @export
-perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, ns, alpha, pMax, chisqMin, sepSet, ncores) {
+perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, ns, ko_idx, alpha, pMax, chisqMin, sepSet, ncores) {
   edge_index <- get_edge_index(G)
   message('Performing CI test ...')
   res <- pbmcapply::pbmcmapply(function(i, j) {
@@ -40,6 +41,22 @@ perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, n
     if (length(A) < order) {
       return(list(order_reached = TRUE))
     }
+    if (is.null(ko_idx)) {
+      Cs_ij <- Cs
+      ns_ij <- ns
+    } else {
+      if ((!(i %in% ko_idx)) && (!(j %in% ko_idx))) {
+        idx <- seq_len(1 + length(ko_idx))
+      } else if ((i %in% ko_idx) && (!(j %in% ko_idx))) {
+        idx <- c(seq_len(1 + length(ko_idx)), 1 + length(ko_idx) + match(i, ko_idx))
+      } else if (!(i %in% ko_idx) && (j %in% ko_idx)) {
+        idx <- c(seq_len(1 + length(ko_idx)), 1 + length(ko_idx) + match(j, ko_idx))
+      } else {
+        idx <- c(seq_len(1 + length(ko_idx)), 1 + length(ko_idx) + match(i, ko_idx), 1 + length(ko_idx) + match(j, ko_idx))
+      }
+      Cs_ij <- Cs[idx]
+      ns_ij <- ns[idx]
+    }
     pmax <- -1
     chisqmin <- Inf
     iter <- iterpc::iterpc(length(A), order)
@@ -48,7 +65,7 @@ perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, n
       S <- A[index]
       zstats <- mapply(function(C, n) {
         pcalg::zStat(x = i, y = j, S = S, C = C, n = n)
-      }, C = Cs, n = ns, SIMPLIFY = T)
+      }, C = Cs_ij, n = ns_ij, SIMPLIFY = T)
       chisq <- sum(zstats ^ 2)
       pv <- pchisq(chisq, df = length(zstats), lower.tail = FALSE)
       pmax <- max(pmax, pv)
@@ -106,6 +123,7 @@ perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, n
 #' @param group Named vector of cell label: 'WT' for wild-type cells, perturbed gene for perturbed cell.
 #' @param alpha Significance level for CI tests.
 #' @param ncores Number of CPU cores for parallel processing.
+#' @param mixgroup Whether calculating correlation between KO gene A and gene B by combining WT and A-KO cells.
 #' @param G Optional initial adjacency matrix; defaults to a fully connected graph without self-loops.
 #' @param max_order Maximum conditioning set size for non-hub genes.
 #' @param hub_genes Optional character vector of hub gene names.
@@ -173,13 +191,13 @@ perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, n
 #' )
 #' plot(skel$graph, layout = igraph::layout_with_kk)
 #' @export
-infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, G = NULL, max_order = 1, hub_genes = NULL, max_order_hub = NULL, sepset = TRUE) {
+infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, mixgroup = TRUE, G = NULL, max_order = 1, hub_genes = NULL, max_order_hub = NULL, sepset = TRUE) {
   # Check group
   stopifnot(identical(rownames(Y), names(group)))
   stopifnot('group must contain wild-type cells labeled as WT' = 'WT' %in% group)
   stopifnot('Remove groups with less than 50 cells' = all(table(group) >= 50))
   # Check initial adjacency matrix
-  genes = colnames(Y)
+  genes <- colnames(Y)
   if (is.null(G)) {
     G <- matrix(TRUE, length(genes), length(genes), dimnames = list(genes, genes))
     diag(G) <- FALSE
@@ -202,12 +220,20 @@ infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, G = NULL, max
   # Initialize CI test statistics
   message('------------------------------------------------')
   message('Initializing CI test statistics ...')
-  labels <- setdiff(group, 'WT')
-  ns <- sapply(labels, function(label) sum(group == label))
-  if ((length(labels) < ncores) && (ncol(Y) > 1e3)) {
-    Cs <- sapply(labels, simplify = F, function(label) parallel_cor(Y[group == label, ], ncores = ncores))
+  kos <- setdiff(group, 'WT')
+  label_list <- setNames(as.list(unique(group)), unique(group))
+  ko_idx <- NULL
+  if (mixgroup) {
+    append <- lapply(kos, function(label) c('WT', label))
+    names(append) <- paste0('WT+', kos)
+    label_list <- c(label_list, append)
+    ko_idx <- match(kos, genes)
+  }
+  ns <- sapply(label_list, function(labels) sum(group %in% labels))
+  if ((length(label_list) < ncores) && (ncol(Y) > 1e3)) {
+    Cs <- lapply(label_list, function(labels) parallel_cor(Y[group %in% labels, ], ncores = ncores))
   } else {
-    Cs <- pbmcapply::pbmclapply(labels, function(label) cor(Y[group == label, ]), mc.cores = ncores)
+    Cs <- pbmcapply::pbmclapply(label_list, function(labels) cor(Y[group %in% labels, ]), mc.cores = ncores)
   }
   pMax <- chisqMin <- matrix(NA, length(genes), length(genes), dimnames = list(genes, genes))
   pMax[G] <- -1
@@ -229,6 +255,7 @@ infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, G = NULL, max
       hub_index = hub_index,
       Cs = Cs,
       ns = ns,
+      ko_idx = ko_idx,
       alpha = alpha,
       pMax = pMax,
       chisqMin = chisqMin,
