@@ -35,7 +35,7 @@ simulate_coef <- function(parents, real_colmeans, min_coef, max_coef) {
 #'   \item \code{group}: Simulated group.
 #' }
 #' @export
-simulate_expression <- function(d, Y, group, min_coef, max_coef, cv, covariates = NULL) {
+simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, covariates = NULL) {
   # Check inputs
   stopifnot(identical(rownames(Y), names(group)))
   stopifnot('WT' %in% group)
