@@ -39,7 +39,7 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
   # Check inputs
   stopifnot(identical(rownames(Y), names(group)))
   stopifnot('WT' %in% group)
-  stopitnot(all(table(group) >= 50))
+  stopifnot(all(table(group) >= 50))
   kos <- setdiff(group, 'WT')
   genes <- colnames(Y)
   stopifnot(all(kos %in% genes))
@@ -47,9 +47,10 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
   ngene <- length(genes)
   if (!is.null(covariates)) {
     stopifnot('matrix' %in% class(covariates) || 'data.frame' %in% class(covariates))
+    covariates <- as.matrix(covariates)
     stopifnot(nrow(covariates) == length(group))
     coef_covariates <- matrix(
-      x = rnorm(n = ngene * ncol(covariates), mean = 0, sd = 0.05),
+      data = rnorm(n = ngene * ncol(covariates), mean = 0, sd = 0.05),
       nrow = ngene,
       ncol = ncol(covariates),
       dimnames = list(genes, colnames(covariates))
@@ -85,7 +86,9 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
   wt_colmeans <- colMeans(real_wt)
   max_wt_colmean <- max(wt_colmeans)
   # Simulate expression
+  pb <- pbmcapply::progressBar(min = 0, max = ngene)
   for (v in ordering) {
+    setTxtProgressBar(pb = pb, value = match(v, ordering))
     parents <- igraph::neighbors(graph = dag, v = v, mode = 'in')$name
     if (length(parents) == 0) {
       wt[, v] <- sample(x = real_wt[, v])
@@ -107,7 +110,7 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
         )
         normal_means <- as.vector(coef[[v]][1] + log(1 + wt[, parents, drop = FALSE]) %*% coef[[v]][-1])
         if (!is.null(covariates)) {
-          normal_means <- normal_means + covariates[group == 'WT', , drop = FALSE] %in% coef_covariates[v, ]
+          normal_means <- normal_means + covariates[group == 'WT', , drop = FALSE] %*% coef_covariates[v, ]
         }
         normal_sds <- abs(normal_means / cv)
         lambdas <- exp(rnorm(n = nwt, mean = normal_means, sd = normal_sds))
@@ -121,7 +124,7 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
         } else {
           normal_means <- as.vector(coef[[v]][1] + log(1 + pts[[ko]][, parents, drop = FALSE]) %*% coef[[v]][-1])
           if (!is.null(covariates)) {
-            normal_means <- normal_means + covariates[group == ko, , drop = FALSE] %in% coef_covariates[v, ]
+            normal_means <- normal_means + covariates[group == ko, , drop = FALSE] %*% coef_covariates[v, ]
           }
           normal_sds <- abs(normal_means / cv)
           lambdas <- exp(rnorm(n = nwt, mean = normal_means, sd = normal_sds))
@@ -131,6 +134,7 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
       }
     }
   }
+  close(pb)
   Y <- do.call(rbind, c(list(wt), pts))
   group <- group[rownames(Y)]
   return(list(dag = dag, coef = coef, Y = Y, group = group))
