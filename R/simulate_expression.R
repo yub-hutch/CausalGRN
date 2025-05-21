@@ -8,7 +8,7 @@ sample_BA_dag <- function(d, nodes) {
 
 simulate_coef <- function(parents, real_colmeans, min_coef, max_coef) {
   stopifnot(length(parents) > 0)
-  b0 <- sample(x = real_colmeans, size = 1)
+  b0 <- sample(x = log(real_colmeans), size = 1)
   b1 <- runif(n = length(parents), min = min_coef, max = max_coef)
   b1 <- b1 * sample(x = c(-1, 1), size = length(b1), replace = TRUE)
   names(b1) <- parents
