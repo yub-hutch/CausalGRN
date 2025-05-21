@@ -137,5 +137,10 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
   close(pb)
   Y <- do.call(rbind, c(list(wt), pts))
   group <- group[rownames(Y)]
-  return(list(dag = dag, coef = coef, Y = Y, group = group))
+  if (is.null(covariates)) {
+    return(list(dag = dag, coef = coef, Y = Y, group = group))
+  } else {
+    covariates <- covariates[rownames(Y), , drop = FALSE]
+    return(list(dag = dag, coef = coef, Y = Y, group = group, covariates = covariates, coef_covariates = coef_covariates))
+  }
 }
