@@ -10,6 +10,8 @@ infer_skeleton_from_wildtype(
   ncores,
   G = NULL,
   max_order = 1,
+  max_nchildren = Inf,
+  max_nparent = Inf,
   hub_genes = NULL,
   max_order_hub = NULL,
   sepset = TRUE
@@ -25,6 +27,10 @@ infer_skeleton_from_wildtype(
 \item{G}{Optional initial adjacency matrix; defaults to a fully connected graph without self-loops.}
 
 \item{max_order}{Maximum conditioning set size for non-hub genes.}
+
+\item{max_nchildren}{Maximum number of children a node can have.}
+
+\item{max_nparent}{Maximum number of parents a node can have.}
 
 \item{hub_genes}{Optional character vector of hub gene names.}
 

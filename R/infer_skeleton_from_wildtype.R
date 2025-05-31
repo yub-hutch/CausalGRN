@@ -105,6 +105,8 @@ perform_ci_test_from_wildtype <- function(G, order, max_order, hub_index, C, n, 
 #' @param ncores Number of CPU cores for parallel processing.
 #' @param G Optional initial adjacency matrix; defaults to a fully connected graph without self-loops.
 #' @param max_order Maximum conditioning set size for non-hub genes.
+#' @param max_nchildren Maximum number of children a node can have.
+#' @param max_nparent Maximum number of parents a node can have.
 #' @param hub_genes Optional character vector of hub gene names.
 #' @param max_order_hub Maximum conditioning set size for hub genes.
 #' @param sepset Return separation set or not (default is \code{TRUE}).
@@ -162,7 +164,7 @@ perform_ci_test_from_wildtype <- function(G, order, max_order, hub_index, C, n, 
 #' )
 #' plot(skel$graph, layout = igraph::layout_with_kk)
 #' @export
-infer_skeleton_from_wildtype <- function(Y, alpha, ncores, G = NULL, max_order = 1, hub_genes = NULL, max_order_hub = NULL, sepset = TRUE) {
+infer_skeleton_from_wildtype <- function(Y, alpha, ncores, G = NULL, max_order = 1, max_nchildren = Inf, max_nparent = Inf, hub_genes = NULL, max_order_hub = NULL, sepset = TRUE) {
   # Check initial adjacency matrix
   genes = colnames(Y)
   if (is.null(G)) {
@@ -231,6 +233,6 @@ infer_skeleton_from_wildtype <- function(Y, alpha, ncores, G = NULL, max_order =
     gc()
     order <- order + 1
   }
-  graph <- adj2igraph(G = G, pMax = pMax, chisqMin = chisqMin)
+  graph <- adj2igraph(G = G, pMax = pMax, chisqMin = chisqMin, max_nchildren = max_nchildren, max_nparent = max_nparent)
   return(list(graph = graph, sepSet = sepSet))
 }

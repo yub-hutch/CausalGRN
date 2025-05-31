@@ -126,6 +126,8 @@ perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, n
 #' @param mixgroup Whether calculating correlation between KO gene A and gene B by combining WT and A-KO cells.
 #' @param G Optional initial adjacency matrix; defaults to a fully connected graph without self-loops.
 #' @param max_order Maximum conditioning set size for non-hub genes.
+#' @param max_nchildren Maximum number of children a node can have.
+#' @param max_nparent Maximum number of parents a node can have.
 #' @param hub_genes Optional character vector of hub gene names.
 #' @param max_order_hub Maximum conditioning set size for hub genes.
 #' @param sepset Return separation set or not (default is \code{TRUE}).
@@ -191,7 +193,7 @@ perform_ci_test_from_perturbed <- function(G, order, max_order, hub_index, Cs, n
 #' )
 #' plot(skel$graph, layout = igraph::layout_with_kk)
 #' @export
-infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, mixgroup = TRUE, G = NULL, max_order = 1, hub_genes = NULL, max_order_hub = NULL, sepset = TRUE) {
+infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, mixgroup = TRUE, G = NULL, max_order = 1, max_nchildren = Inf, max_nparent = Inf, hub_genes = NULL, max_order_hub = NULL, sepset = TRUE) {
   # Check group
   stopifnot(identical(rownames(Y), names(group)))
   stopifnot('group must contain wild-type cells labeled as WT' = 'WT' %in% group)
@@ -278,6 +280,6 @@ infer_skeleton_from_perturbed <- function(Y, group, alpha, ncores, mixgroup = TR
     gc()
     order <- order + 1
   }
-  graph <- adj2igraph(G = G, pMax = pMax, chisqMin = chisqMin)
+  graph <- adj2igraph(G = G, pMax = pMax, chisqMin = chisqMin, max_nchildren = max_nchildren, max_nparent = max_nparent)
   return(list(graph = graph, sepSet = sepSet))
 }
