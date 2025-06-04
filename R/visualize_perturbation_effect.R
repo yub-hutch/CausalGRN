@@ -3,7 +3,7 @@
 #' Draw scatter plot between Cohen's D and correlation in wild-type cells of KO-gene pairs.
 #'
 #' @param stat Calculated from \code{\link{calc_perturbation_effect}}.
-#' @param cor Correlation across "WT" or "All" cells.
+#' @param cor "pearson" or "spearman" correlation in WT cells.
 #' @return ggplot object.
 #'
 #' @examples
@@ -25,14 +25,14 @@
 #' plot_cohens_d_vs_cor(stat)
 #'
 #' @export
-plot_cohens_d_vs_cor <- function(stat, cor = c('WT', 'All')) {
+plot_cohens_d_vs_cor <- function(stat, cor = c('pearson', 'spearman')) {
   cor <- match.arg(cor)
-  if (cor == 'WT') {
-    plot_data <- stat |> dplyr::filter(ko != gene) |> dplyr::mutate(cor = cor_wt)
-    xlab <- 'Correlation in WT cells'
+  if (cor == 'pearson') {
+    plot_data <- stat |> dplyr::filter(ko != gene) |> dplyr::mutate(cor = cor_pearson)
+    xlab <- 'Pearson correlation in WT cells'
   } else {
-    plot_data <- stat |> dplyr::filter(ko != gene) |> dplyr::mutate(cor = cor_all)
-    xlab <- 'Correlation in all cells'
+    plot_data <- stat |> dplyr::filter(ko != gene) |> dplyr::mutate(cor = cor_spearman)
+    xlab <- 'Spearman correlation in WT cells'
   }
   p <- ggplot2::ggplot(plot_data, ggplot2::aes(cor, abs(cd))) +
     ggpointdensity::geom_pointdensity() +
@@ -52,8 +52,8 @@ plot_cohens_d_vs_cor <- function(stat, cor = c('WT', 'All')) {
 #' @return ggplot object.
 #' @export
 plot_adj_pv_for_ko_pairs <- function(stat, eps = 1e-5) {
-  stat1 <- stat |> dplyr::filter(ko > gene)
-  stat2 <- stat |> dplyr::filter(ko < gene)
+  stat1 <- stat |> dplyr::filter(gene %in% ko) |> dplyr::filter(ko > gene)
+  stat2 <- stat |> dplyr::filter(gene %in% ko) |> dplyr::filter(ko < gene)
   plot_data <- stat1 |>
     dplyr::inner_join(stat2, by = c(ko = "gene", gene = "ko"), suffix = c("_1", "_2")) |>
     dplyr::mutate(
@@ -61,6 +61,10 @@ plot_adj_pv_for_ko_pairs <- function(stat, eps = 1e-5) {
       adj_pv_2_clamped = pmax(adj_pv_2, eps)
     )
   thr <- -log10(0.05)
+  if (nrow(plot_data) > 1e4) {
+    message('Sample 10000 data points.')
+    plot_data <- plot_data |> dplyr::sample_n(size = 1e4)
+  }
   p <- ggplot2::ggplot(plot_data, ggplot2::aes(-log10(adj_pv_1_clamped), -log10(adj_pv_2_clamped))) +
     ggpointdensity::geom_pointdensity() +
     ggplot2::scale_color_viridis_c(guide = "none") +
@@ -73,3 +77,5 @@ plot_adj_pv_for_ko_pairs <- function(stat, eps = 1e-5) {
     ggpubr::theme_pubr()
   return(p)
 }
+
+

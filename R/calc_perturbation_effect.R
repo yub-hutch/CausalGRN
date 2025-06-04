@@ -13,8 +13,8 @@
 #'   \item \code{cd}: Cohen's D (Normalized mean difference).
 #'   \item \code{wilcox_pv}: Wilcoxon rank sum test P-value.
 #'   \item \code{t_pv}: T-test P-value.
-#'   \item \code{cor_wt}: Correlation in wild-type cells.
-#'   \item \code{cor_all}: Correlation in all cells.
+#'   \item \code{cor_pearson}: Pearson correlation in wild-type cells.
+#'   \item \code{cor_spearman}: Spearman correlation in all cells.
 #'   \item \code{adj_wilcox_pv}: BH-adjusted Wilcoxon rank sum test P-value.
 #'   \item \code{adj_t_pv}: BH-adjusted T-test P-value.
 #'   \item \code{adj_pv}: The larger of `adj_wilcox_pv` and `adj_wilcox_pv`.
@@ -56,13 +56,13 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       cds <- diffs / pooled_sds
       wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = F, correct = T)$pvalue
       t_pvs <- matrixTests::col_t_welch(wt, pt)$pvalue
-      cors_wt <- c(cor(wt[, ko], wt))
-      cors_all <- c(cor(Y[, ko], Y))
+      cors_pearson <- c(cor(wt[, ko], wt))
+      cors_spearman <- c(cor(wt[, ko], wt, method = 'spearman'))
       dplyr::tibble(
         ko = ko, gene = genes,
         diff = diffs, cd = cds,
         wilcox_pv = wilcox_pvs, t_pv = t_pvs,
-        cor_wt = cors_wt, cor_all = cors_all
+        cor_pearson = cors_pearson, cor_spearman = cors_spearman
       )
     }, kos, SIMPLIFY = F, mc.cores = ncores))
   } else {
@@ -92,13 +92,13 @@ calc_perturbation_effect <- function(Y, group, ncores) {
         cds <- diffs / pooled_sds
         wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = F, correct = T)$pvalue
         t_pvs <- matrixTests::col_t_welch(wt, pt)$pvalue
-        cors_wt <- c(cor(ko_expr_wt, wt))
-        cors_all <- c(cor(ko_expr_all, sub_Y))
+        cors_pearson <- c(cor(ko_expr_wt, wt))
+        cors_spearman <- c(cor(ko_expr_wt, wt, method = 'spearman'))
         dplyr::tibble(
           ko = ko, gene = genes[cols],
           diff = diffs, cd = cds,
           wilcox_pv = wilcox_pvs, t_pv = t_pvs,
-          cor_wt = cors_wt, cor_all = cors_all
+          cor_pearson = cors_pearson, cor_spearman = cors_spearman
         )
       }, mc.cores = ncores))
       return(sub_stat)
