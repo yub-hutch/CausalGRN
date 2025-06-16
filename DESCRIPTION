@@ -24,4 +24,5 @@ Imports:
     matrixTests,
     parallel,
     pbmcapply,
-    pcalg
+    pcalg,
+    ppcor
