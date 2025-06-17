@@ -23,6 +23,9 @@ calc_pcor(i, j, k, count, Y, max_thr, min_n1, min_n2)
 
 \item{min_n2}{Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0.}
 }
+\value{
+List of partial correlation estimate, z-score, and p-value.
+}
 \description{
 Correct partial correlation for sparse count data by thresholding conditional variable.
 }
@@ -33,7 +36,7 @@ n <- 1e5
 u1 <- rnorm(n)
 u2 <- rnorm(n, u1)
 u3 <- rnorm(n, u2)
-u <- cbind(u1, u2, u3)
+u <- cbind(g1 = u1, g2 = u2, g3 = u3)
 count <- apply(u, 2, function(x) rpois(n, lambda = exp(x)))
 Y <- log1p(count)
 # True partial correlation in latent space

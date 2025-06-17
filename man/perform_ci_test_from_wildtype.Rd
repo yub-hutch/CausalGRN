@@ -8,12 +8,16 @@ perform_ci_test_from_wildtype(
   G,
   order,
   max_order,
-  hub_index,
-  C,
-  n,
+  count,
+  Y,
+  max_thr,
+  min_n1,
+  min_n2,
   alpha,
+  min_abspcor,
   pMax,
   chisqMin,
+  absPcorMin,
   sepSet,
   ncores
 )
@@ -25,17 +29,25 @@ perform_ci_test_from_wildtype(
 
 \item{max_order}{Maximum allowed size for the conditioning set.}
 
-\item{hub_index}{Vector of node indices considered as hubs.}
+\item{count}{scRNA-seq count matrix (cells x genes).}
 
-\item{C}{Correlation matrix of the variables.}
+\item{Y}{scRNA-seq normalized expression matrix (cells × genes). For example, log1p(total UMI corrected count).}
 
-\item{n}{Sample size used in the CI tests.}
+\item{max_thr}{Maximum threshold for conditional variable.}
+
+\item{min_n1}{Minimum number of samples satisfying Yk > selected threshold.}
+
+\item{min_n2}{Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0.}
 
 \item{alpha}{Significance level for the CI tests.}
+
+\item{min_abspcor}{Minimum absolute value of partial correlation for kept edges.}
 
 \item{pMax}{Matrix to store the maximum p-values for each edge.}
 
 \item{chisqMin}{Matrix to store the minimum chi-square statistics for each edge.}
+
+\item{absPcorMin}{Matrix to store the minimum absolute value of partial correlation for each edge.}
 
 \item{sepSet}{List of separation sets for each pair of nodes.}
 
@@ -47,6 +59,7 @@ A list containing:
   \item{G}{Updated adjacency matrix after removing conditionally independent edges.}
   \item{pMax}{Updated matrix of maximum p-values for each edge.}
   \item{chisqMin}{Updated matrix of minimum chi-square statistics for each edge.}
+  \item{absPcorMin}{Updated matrix of minimum absolute value of partial correlation for each edge.}
   \item{sepSet}{Updated list of separation sets for each pair of nodes.}
   \item{done}{Logical indicating whether all edges reached the specified order.}
 }

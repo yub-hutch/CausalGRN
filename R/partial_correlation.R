@@ -1,27 +1,3 @@
-#' Proportion of counts ≤ threshold
-#'
-#' Compute proportion of cells with counts ≤ thresholds for each gene.
-#'
-#' @param count scRNA-seq count matrix (cells × genes).
-#' @param ncores Number of cores for parallelization.
-#' @param max_thr Maximum threshold (default: 10).
-#' @return Matrix (thresholds × genes) of proportions.
-#' @examples
-#' count <- matrix(sample(0:15, 50, replace = TRUE), nrow = 10)
-#' dimnames(count) <- list(paste0('cell', seq(10)), paste0('gene', seq(5)))
-#' calc_count_cdf(count, ncores = 1, max_thr = 10)
-#' @export
-calc_count_cdf <- function(count, ncores, max_thr = 10) {
-  thrs <- seq(0, max_thr)
-  prob <- do.call(rbind, pbmcapply::pbmclapply(thrs, function(thr) {
-    colMeans(count <= thr)
-  }, mc.cores = ncores))
-  prob <- rbind(0, prob)
-  rownames(prob) <- paste0('thr=', c(-1, thrs))
-  return(prob)
-}
-
-
 #' Calculate partial correlation for sparse count data
 #'
 #' Correct partial correlation for sparse count data by thresholding conditional variable.
@@ -34,6 +10,7 @@ calc_count_cdf <- function(count, ncores, max_thr = 10) {
 #' @param max_thr Maximum threshold for conditional variable.
 #' @param min_n1 Minimum number of samples satisfying Yk > selected threshold.
 #' @param min_n2 Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0.
+#' @return List of partial correlation estimate, z-score, and p-value.
 #' @examples
 #' # Gene 1 -> Gene 2 -> Gene 3
 #' set.seed(123)
@@ -41,7 +18,7 @@ calc_count_cdf <- function(count, ncores, max_thr = 10) {
 #' u1 <- rnorm(n)
 #' u2 <- rnorm(n, u1)
 #' u3 <- rnorm(n, u2)
-#' u <- cbind(u1, u2, u3)
+#' u <- cbind(g1 = u1, g2 = u2, g3 = u3)
 #' count <- apply(u, 2, function(x) rpois(n, lambda = exp(x)))
 #' Y <- log1p(count)
 #' # True partial correlation in latent space
@@ -63,12 +40,5 @@ calc_pcor <- function(i, j, k, count, Y, max_thr, min_n1, min_n2) {
     break
   }
   idx <- count[, k] > selected_thr
-  test <- ppcor::pcor.test(x = Y[idx, i], y = Y[idx, j], z = Y[idx, k], method = 'pearson')
-  return(data.frame(
-    thr = selected_thr,
-    n1 = sum(idx),
-    n2 = sum((count[idx, i] > 0) & (count[idx, j] > 0)),
-    pcor = test$estimate,
-    pv = test$p.value
-  ))
+  return(ppcor::pcor.test(x = Y[idx, i], y = Y[idx, j], z = Y[idx, k], method = 'pearson'))
 }

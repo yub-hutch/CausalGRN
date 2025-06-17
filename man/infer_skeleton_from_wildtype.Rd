@@ -5,94 +5,79 @@
 \title{Infer graph skeleton via conditional independence tests based on wild-type data}
 \usage{
 infer_skeleton_from_wildtype(
+  count,
   Y,
   alpha,
+  min_abspcor,
   ncores,
   G = NULL,
   max_order = 1,
+  max_thr = 10,
+  min_n1 = 2000,
+  min_n2 = 400,
   max_nchildren = Inf,
   max_nparent = Inf,
-  hub_genes = NULL,
-  max_order_hub = NULL,
   sepset = TRUE
 )
 }
 \arguments{
-\item{Y}{scRNA-seq matrix (samples × genes).}
+\item{count}{scRNA-seq count matrix (cells x genes).}
+
+\item{Y}{scRNA-seq normalized expression matrix (cells × genes). For example, log1p(total UMI corrected count).}
 
 \item{alpha}{Significance level for CI tests.}
 
+\item{min_abspcor}{Minimum absolute value of partial correlation for kept edges.}
+
 \item{ncores}{Number of CPU cores for parallel processing.}
 
-\item{G}{Optional initial adjacency matrix; defaults to a fully connected graph without self-loops.}
+\item{G}{Optional initial adjacency matrix (defaults to a fully connected graph without self-loops).}
 
-\item{max_order}{Maximum conditioning set size for non-hub genes.}
+\item{max_order}{Maximum conditioning set size (0 or 1, default is 1).}
 
-\item{max_nchildren}{Maximum number of children a node can have.}
+\item{max_thr}{Maximum threshold for conditional variable (default is 10).}
 
-\item{max_nparent}{Maximum number of parents a node can have.}
+\item{min_n1}{Minimum number of samples satisfying Yk > selected threshold (default is 2000).}
 
-\item{hub_genes}{Optional character vector of hub gene names.}
+\item{min_n2}{Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0 (default is 400).}
 
-\item{max_order_hub}{Maximum conditioning set size for hub genes.}
+\item{max_nchildren}{Maximum number of children a node can have (default is Inf).}
+
+\item{max_nparent}{Maximum number of parents a node can have (default is Inf).}
 
 \item{sepset}{Return separation set or not (default is \code{TRUE}).}
 }
 \value{
 A list with:
 \describe{
-  \item{graph}{An igraph object representing the inferred skeleton with edge attributes `pMax` and `chisqMin`.}
+  \item{graph}{An igraph object representing the inferred skeleton with edge attributes `pMax`, `chisqMin`, and `absPcorMin`.}
   \item{sepSet}{List of separation sets for each node pair.}
 }
 }
 \description{
 Constructs graph skeleton by performing iterative conditional independence (CI) tests on gene expression data.
-Edges are removed based on statistical independence, optionally considering hub genes with higher-order conditioning.
+Edges are removed based on statistical independence.
 }
 \examples{
-# No hub genes
-# x -> y -> z
+# Gene 1 -> Gene 2 -> Gene 3
 set.seed(123)
-n <- 1e3
-x <- rnorm(n)
-y <- rnorm(n, mean = x, sd = 1)
-z <- rnorm(n, mean = y, sd = 1)
-data <- cbind(x = x, y = y, z = z)
+n <- 1e5
+u1 <- rnorm(n)
+u2 <- rnorm(n, u1)
+u3 <- rnorm(n, u2)
+u <- cbind(g1 = u1, g2 = u2, g3 = u3)
+count <- apply(u, 2, function(x) rpois(n, lambda = exp(x)))
+Y <- log1p(count)
 skel <- infer_skeleton_from_wildtype(
-  Y = data,
-  alpha = 0.05,
+  count = count,
+  Y = Y,
+  alpha = 1e-3,
+  min_abspcor = 0.05,
   ncores = 2,
   max_order = 1
 )
 print(igraph::as_data_frame(skel$graph))
 plot(skel$graph)
-get_sepset(skel, 'x', 'z')
+get_sepset(skel, 'g1', 'g3')
 
-# With hub genes
-# Hub genes PC 1-3, x_i -> PC_j -> z
-set.seed(123)
-n <- 1e3
-X <- matrix(rnorm(5 * n), n, 5)
-B <- cbind(
-  c(0.4082, 0.4082, 0.4082, 0.4082, 0.4082),
-  c(0.6325, 0.3162, 0.0000, -0.3162, -0.6325),
-  c(0.0000, 0.7071, -0.7071, 0.0000, 0.0000)
-)
-PC <- X \%*\% B + matrix(rnorm(3 * n), n, 3)
-print(cor(PC))
-z <- PC \%*\% rep(1, 3) + rnorm(n)
-data <- cbind(X, PC, z)
-colnames(data) <- c(paste0('x', 1:5), paste0('PC', 1:3), 'z')
-G <- matrix(TRUE, ncol(data), ncol(data), dimnames = list(colnames(data), colnames(data)))
-diag(G) <- FALSE
-G[paste0('PC', 1:3), paste0('PC', 1:3)] <- FALSE
-skel <- infer_skeleton_from_wildtype(
-  Y = data,
-  alpha = 1e-3,
-  ncores = 2,
-  max_order = 1,
-  hub_genes = paste0('PC', 1:3),
-  max_order_hub = 3
-)
-plot(skel$graph, layout = igraph::layout_with_kk)
 }
