@@ -42,11 +42,13 @@ get_edge_index <- function(G) {
 #' @param pMax P-value matrix corresponding to edges in `G`.
 #' @param chisqMin Chi-square statistics matrix corresponding to edges in `G`.
 #' @param absPcorMin Partial correlation matrix corresponding to edges in `G`.
+#' @param Threshold Threshold matrix corresponding to edges in `G`.
+#' @param sampleSize sampleSize matrix corresponding to edges in `G`.
 #' @param max_nchildren Maximum number of children a node can have.
 #' @param max_nparent Maximum number of parents a node can have.
 #' @return Directed igraph object with edge attributes `pMax` and `chisqMin`.
 #' @export
-adj2igraph <- function(G, pMax, chisqMin, absPcorMin, max_nchildren, max_nparent) {
+adj2igraph <- function(G, pMax, chisqMin, absPcorMin, Threshold, sampleSize, max_nchildren, max_nparent) {
   graph <- igraph::graph_from_adjacency_matrix(G, mode = 'directed')
   # Delete unwanted edge attribute
   if ('weight' %in% igraph::edge_attr_names(graph)) {
@@ -57,6 +59,8 @@ adj2igraph <- function(G, pMax, chisqMin, absPcorMin, max_nchildren, max_nparent
   igraph::E(graph)$pMax <- pMax[edges]
   igraph::E(graph)$chisqMin <- chisqMin[edges]
   igraph::E(graph)$absPcorMin <- absPcorMin[edges]
+  igraph::E(graph)$threshold <- Threshold[edges]
+  igraph::E(graph)$n <- sampleSize[edges]
   if (!is.infinite(max_nchildren)) {
     df <- igraph::as_data_frame(graph)
     df <- df |>

@@ -18,6 +18,8 @@ perform_ci_test_from_wildtype(
   pMax,
   chisqMin,
   absPcorMin,
+  Threshold,
+  sampleSize,
   sepSet,
   ncores
 )
@@ -49,6 +51,10 @@ perform_ci_test_from_wildtype(
 
 \item{absPcorMin}{Matrix to store the minimum absolute value of partial correlation for each edge.}
 
+\item{Threshold}{Matrix to store the count threshold of conditional variable when absPcorMin is achieved.}
+
+\item{sampleSize}{Matrix to store the sample size of the test giving absPcorMin.}
+
 \item{sepSet}{List of separation sets for each pair of nodes.}
 
 \item{ncores}{Number of cores to use for parallel processing.}
@@ -60,6 +66,8 @@ A list containing:
   \item{pMax}{Updated matrix of maximum p-values for each edge.}
   \item{chisqMin}{Updated matrix of minimum chi-square statistics for each edge.}
   \item{absPcorMin}{Updated matrix of minimum absolute value of partial correlation for each edge.}
+  \item{Threshold}{Updated matrix of count threshold of conditional variable for each edge.}
+  \item{sampleSize}{Updated matrix of sample size of test for each edge.}
   \item{sepSet}{Updated list of separation sets for each pair of nodes.}
   \item{done}{Logical indicating whether all edges reached the specified order.}
 }

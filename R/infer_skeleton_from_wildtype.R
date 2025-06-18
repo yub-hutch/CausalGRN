@@ -17,6 +17,8 @@
 #' @param pMax Matrix to store the maximum p-values for each edge.
 #' @param chisqMin Matrix to store the minimum chi-square statistics for each edge.
 #' @param absPcorMin Matrix to store the minimum absolute value of partial correlation for each edge.
+#' @param Threshold Matrix to store the count threshold of conditional variable when absPcorMin is achieved.
+#' @param sampleSize Matrix to store the sample size of the test giving absPcorMin.
 #' @param sepSet List of separation sets for each pair of nodes.
 #' @param ncores Number of cores to use for parallel processing.
 #'
@@ -26,12 +28,14 @@
 #'   \item{pMax}{Updated matrix of maximum p-values for each edge.}
 #'   \item{chisqMin}{Updated matrix of minimum chi-square statistics for each edge.}
 #'   \item{absPcorMin}{Updated matrix of minimum absolute value of partial correlation for each edge.}
+#'   \item{Threshold}{Updated matrix of count threshold of conditional variable for each edge.}
+#'   \item{sampleSize}{Updated matrix of sample size of test for each edge.}
 #'   \item{sepSet}{Updated list of separation sets for each pair of nodes.}
 #'   \item{done}{Logical indicating whether all edges reached the specified order.}
 #' }
 #' @export
 perform_ci_test_from_wildtype <- function(
-    G, order, max_order, count, Y, max_thr, min_n1, min_n2, alpha, min_abspcor, pMax, chisqMin, absPcorMin, sepSet, ncores
+    G, order, max_order, count, Y, max_thr, min_n1, min_n2, alpha, min_abspcor, pMax, chisqMin, absPcorMin, Threshold, sampleSize, sepSet, ncores
 ) {
   edge_index <- get_edge_index(G)
   message('Performing CI test ...')
@@ -53,22 +57,36 @@ perform_ci_test_from_wildtype <- function(
       S <- A[index]
       if (order == 0) {
         res_test <- stats::cor.test(Y[, i], Y[, j])
+        curr_threshold <- NA
+        curr_sample_size <- NA
       }
       if (order == 1) {
         res_test <- calc_pcor(i = i, j = j, k = S, count = count, Y = Y, max_thr = max_thr, min_n1 = min_n1, min_n2 = min_n2)
+        curr_threshold <- res_test$threshold
+        curr_sample_size <- res_test$n
       }
       chisq <- res_test$statistic ^ 2
       pv <- res_test$p.value
       abspcor <- abs(res_test$estimate)
       pmax <- max(pmax, pv)
       chisqmin <- min(chisqmin, chisq)
-      abspcormin <- min(abspcormin, abspcor)
+      if (abspcor < abspcormin) {
+        abspcormin <- abspcor
+        threshold <- curr_threshold
+        sample_size <- curr_sample_size
+      }
       if (pmax > alpha || abspcormin < min_abspcor) {
-        return(list(order_reached = FALSE, pmax = pmax, chisqmin = chisqmin, abspcormin = abspcormin, sepset = S))
+        return(list(
+          order_reached = FALSE, pmax = pmax, chisqmin = chisqmin, abspcormin = abspcormin,
+          threshold = threshold, sample_size = sample_size, sepset = S
+        ))
       }
       index = iterpc::getnext(iter)
       if (is.null(index)) {
-        return(list(order_reached = FALSE, pmax = pmax, chisqmin = chisqmin, abspcormin = abspcormin))
+        return(list(
+          order_reached = FALSE, pmax = pmax, chisqmin = chisqmin, abspcormin = abspcormin,
+          threshold = threshold, sample_size = sample_size
+        ))
       }
     }
   }, i = edge_index[, 1], j = edge_index[, 2], SIMPLIFY = F, mc.cores = ncores)
@@ -80,11 +98,16 @@ perform_ci_test_from_wildtype <- function(
     p <- vapply(res[needs_update], `[[`, numeric(1), "pmax")
     chi <- vapply(res[needs_update], `[[`, numeric(1), "chisqmin")
     abspcor <- vapply(res[needs_update],  `[[`, numeric(1), "abspcormin")
+    thr <- vapply(res[needs_update],  `[[`, numeric(1), "threshold")
+    ss <- vapply(res[needs_update],  `[[`, numeric(1), "sample_size")
     idx <- cbind(i, j)
     mirror_idx <- idx[, 2:1, drop = FALSE]
     pMax[idx] <- pMax[mirror_idx] <- pmax(pMax[idx], p)
     chisqMin[idx] <- chisqMin[mirror_idx] <- pmin(chisqMin[idx], chi)
-    absPcorMin[idx] <- absPcorMin[mirror_idx] <- pmin(absPcorMin[idx], abspcor)
+    to_update <- (abspcor < absPcorMin[idx])
+    absPcorMin[idx][to_update] <- absPcorMin[mirror_idx][to_update] <- abspcor[to_update]
+    Threshold[idx][to_update] <- Threshold[mirror_idx][to_update] <- thr[to_update]
+    sampleSize[idx][to_update] <- sampleSize[mirror_idx][to_update] <- ss[to_update]
     to_remove <- (p > alpha) | (abspcor < min_abspcor)
     if (any(to_remove)) {
       rem <- idx[to_remove, , drop = FALSE]
@@ -105,7 +128,7 @@ perform_ci_test_from_wildtype <- function(
     }
   }
   done <- !any(needs_update)
-  return(list(G = G, pMax = pMax, chisqMin = chisqMin, absPcorMin = absPcorMin, sepSet = sepSet, done = done))
+  return(list(G = G, pMax = pMax, chisqMin = chisqMin, absPcorMin = absPcorMin, Threshold = Threshold, sampleSize = sampleSize, sepSet = sepSet, done = done))
 }
 
 
@@ -175,7 +198,7 @@ infer_skeleton_from_wildtype <- function(
   last_nedge <- nedge <- sum(G) / 2
   message(paste0("Number of edges in initial graph: ", nedge))
   # Initialize CI test statistics
-  pMax <- chisqMin <- absPcorMin <- matrix(NA, length(genes), length(genes), dimnames = list(genes, genes))
+  pMax <- chisqMin <- absPcorMin <- Threshold <- sampleSize <- matrix(NA, length(genes), length(genes), dimnames = list(genes, genes))
   pMax[G] <- -1
   chisqMin[G] <- Inf
   absPcorMin[G] <- Inf
@@ -203,6 +226,8 @@ infer_skeleton_from_wildtype <- function(
       pMax = pMax,
       chisqMin = chisqMin,
       absPcorMin = absPcorMin,
+      Threshold = Threshold,
+      sampleSize = sampleSize,
       sepSet = sepSet,
       ncores = ncores
     )
@@ -210,6 +235,8 @@ infer_skeleton_from_wildtype <- function(
     pMax <- res$pMax
     chisqMin <- res$chisqMin
     absPcorMin <- res$absPcorMin
+    Threshold <- res$Threshold
+    sampleSize <- res$sampleSize
     sepSet <- res$sepSet
     done <- res$done
     nedge <- sum(G) / 2
@@ -224,7 +251,7 @@ infer_skeleton_from_wildtype <- function(
     order <- order + 1
   }
   graph <- adj2igraph(
-    G = G, pMax = pMax, chisqMin = chisqMin, absPcorMin = absPcorMin,
+    G = G, pMax = pMax, chisqMin = chisqMin, absPcorMin = absPcorMin, Threshold = Threshold, sampleSize = sampleSize,
     max_nchildren = max_nchildren, max_nparent = max_nparent
   )
   return(list(graph = graph, sepSet = sepSet))

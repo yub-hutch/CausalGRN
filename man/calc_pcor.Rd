@@ -24,7 +24,7 @@ calc_pcor(i, j, k, count, Y, max_thr, min_n1, min_n2)
 \item{min_n2}{Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0.}
 }
 \value{
-List of partial correlation estimate, z-score, and p-value.
+Data frame of partial correlation estimate, z-score, and p-value.
 }
 \description{
 Correct partial correlation for sparse count data by thresholding conditional variable.

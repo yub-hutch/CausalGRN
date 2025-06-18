@@ -4,7 +4,16 @@
 \alias{adj2igraph}
 \title{Convert adjacency matrix to directed igraph with edge attributes}
 \usage{
-adj2igraph(G, pMax, chisqMin, absPcorMin, max_nchildren, max_nparent)
+adj2igraph(
+  G,
+  pMax,
+  chisqMin,
+  absPcorMin,
+  Threshold,
+  sampleSize,
+  max_nchildren,
+  max_nparent
+)
 }
 \arguments{
 \item{G}{Adjacency matrix.}
@@ -14,6 +23,10 @@ adj2igraph(G, pMax, chisqMin, absPcorMin, max_nchildren, max_nparent)
 \item{chisqMin}{Chi-square statistics matrix corresponding to edges in `G`.}
 
 \item{absPcorMin}{Partial correlation matrix corresponding to edges in `G`.}
+
+\item{Threshold}{Threshold matrix corresponding to edges in `G`.}
+
+\item{sampleSize}{sampleSize matrix corresponding to edges in `G`.}
 
 \item{max_nchildren}{Maximum number of children a node can have.}
 

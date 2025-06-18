@@ -10,7 +10,7 @@
 #' @param max_thr Maximum threshold for conditional variable.
 #' @param min_n1 Minimum number of samples satisfying Yk > selected threshold.
 #' @param min_n2 Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0.
-#' @return List of partial correlation estimate, z-score, and p-value.
+#' @return Data frame of threshold, sample size, partial correlation estimate, z-score, and p-value.
 #' @examples
 #' # Gene 1 -> Gene 2 -> Gene 3
 #' set.seed(123)
@@ -40,5 +40,7 @@ calc_pcor <- function(i, j, k, count, Y, max_thr, min_n1, min_n2) {
     break
   }
   idx <- count[, k] > selected_thr
-  return(ppcor::pcor.test(x = Y[idx, i], y = Y[idx, j], z = Y[idx, k], method = 'pearson'))
+  res <- ppcor::pcor.test(x = Y[idx, i], y = Y[idx, j], z = Y[idx, k], method = 'pearson')
+  res$threshold <- selected_thr
+  return(res)
 }
