@@ -96,9 +96,6 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
           max_coef = max_coef
         )
         normal_means <- as.vector(coef[[v]][1] + log(1 + wt[, parents, drop = FALSE]) %*% coef[[v]][-1])
-        if (!is.null(covariates)) {
-          normal_means <- normal_means + covariates[group == 'WT', , drop = FALSE] %*% coef_covariates[v, ]
-        }
         normal_sds <- abs(normal_means / cv)
         lambdas <- exp(rnorm(n = nwt, mean = normal_means, sd = normal_sds))
         wt[, v] <- rpois(n = nwt, lambda = lambdas * lib_sizes[group == 'WT'])
@@ -110,9 +107,6 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
           pts[[ko]][, v] <- 0
         } else {
           normal_means <- as.vector(coef[[v]][1] + log(1 + pts[[ko]][, parents, drop = FALSE]) %*% coef[[v]][-1])
-          if (!is.null(covariates)) {
-            normal_means <- normal_means + covariates[group == ko, , drop = FALSE] %*% coef_covariates[v, ]
-          }
           normal_sds <- abs(normal_means / cv)
           lambdas <- exp(rnorm(n = nwt, mean = normal_means, sd = normal_sds))
           pts[[ko]][, v] <- rpois(n = npt[ko], lambda = lambdas * lib_sizes[group == ko])
