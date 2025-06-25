@@ -26,7 +26,7 @@ simulate_coef <- function(parents, real_colmeans, min_coef, max_coef) {
 #' @param min_coef Minimum value of simulated coefficients.
 #' @param max_coef Maximum value of simulated coefficients.
 #' @param cv Coefficient of variation for simulated normal distributions.
-#' @param covariates Cell covariates.
+#' @param lib_sizes Vector of cell library sizes.
 #' @return List containing:
 #' \itemize{
 #'   \item \code{dag}: Simulated DAG.
@@ -35,27 +35,17 @@ simulate_coef <- function(parents, real_colmeans, min_coef, max_coef) {
 #'   \item \code{group}: Simulated group.
 #' }
 #' @export
-simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, covariates = NULL) {
+simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, lib_sizes) {
   # Check inputs
   stopifnot(identical(rownames(Y), names(group)))
   stopifnot('WT' %in% group)
   stopifnot(all(table(group) >= 50))
+  stopifnot(length(lib_sizes) == nrow(Y))
   kos <- setdiff(group, 'WT')
   genes <- colnames(Y)
   stopifnot(all(kos %in% genes))
   nko <- length(kos)
   ngene <- length(genes)
-  if (!is.null(covariates)) {
-    stopifnot('matrix' %in% class(covariates) || 'data.frame' %in% class(covariates))
-    covariates <- as.matrix(covariates)
-    stopifnot(nrow(covariates) == length(group))
-    coef_covariates <- matrix(
-      data = rnorm(n = ngene * ncol(covariates), mean = 0, sd = 0.05),
-      nrow = ngene,
-      ncol = ncol(covariates),
-      dimnames = list(genes, colnames(covariates))
-    )
-  }
   # Simulate DAG
   dag <- sample_BA_dag(d = d, nodes = genes)
   ordering <- igraph::topo_sort(dag, mode = 'out')$name
@@ -67,17 +57,14 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
     ncol = ngene,
     dimnames = list(names(group)[group == 'WT'], genes)
   )
-  npt <- sapply(kos, function(ko) {
-    return(sum(group == ko))
-  })
-  pts <- sapply(kos, simplify = F, function(ko) {
-    pt <- matrix(
+  npt <- sapply(kos, \(ko) sum(group == ko))
+  pts <- sapply(kos, simplify = F, \(ko) {
+    matrix(
       data = NA,
       nrow = npt[ko],
       ncol = ngene,
       dimnames = list(names(group)[group == ko], genes)
     )
-    return(pt)
   })
   coef <- setNames(vector('list', ngene), genes)
   # Set empirical rules
@@ -91,12 +78,12 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
     setTxtProgressBar(pb = pb, value = match(v, ordering))
     parents <- igraph::neighbors(graph = dag, v = v, mode = 'in')$name
     if (length(parents) == 0) {
-      wt[, v] <- sample(x = real_wt[, v])
+      wt[, v] <- as.integer(sample(x = real_wt[, v]) * lib_sizes[group == 'WT'])
       for (ko in kos) {
         if (ko == v) {
-          pts[[ko]][, v] <- sample(x = Y[group == ko, v])
+          pts[[ko]][, v] <- as.integer(sample(x = Y[group == ko, v]) * lib_sizes[group == ko])
         } else {
-          pts[[ko]][, v] <- sample(x = real_wt[, v], size = npt[ko], replace = TRUE)
+          pts[[ko]][, v] <- as.integer(sample(x = real_wt[, v], size = npt[ko], replace = TRUE) * lib_sizes[group == ko])
         }
       }
     } else {
@@ -114,7 +101,7 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
         }
         normal_sds <- abs(normal_means / cv)
         lambdas <- exp(rnorm(n = nwt, mean = normal_means, sd = normal_sds))
-        wt[, v] <- rpois(n = nwt, lambda = lambdas)
+        wt[, v] <- rpois(n = nwt, lambda = lambdas * lib_sizes[group == 'WT'])
         wt[, v] <- pmin(wt[, v], max_wt_value)
         accept <- (mean(wt[, v]) <= max_wt_colmean)
       }
@@ -128,7 +115,7 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
           }
           normal_sds <- abs(normal_means / cv)
           lambdas <- exp(rnorm(n = nwt, mean = normal_means, sd = normal_sds))
-          pts[[ko]][, v] <- rpois(n = npt[ko], lambda = lambdas)
+          pts[[ko]][, v] <- rpois(n = npt[ko], lambda = lambdas * lib_sizes[group == ko])
           pts[[ko]][, v] <- pmin(pts[[ko]][, v], max_wt_value)
         }
       }
@@ -137,10 +124,5 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
   close(pb)
   Y <- do.call(rbind, c(list(wt), pts))
   group <- group[rownames(Y)]
-  if (is.null(covariates)) {
-    return(list(dag = dag, coef = coef, Y = Y, group = group))
-  } else {
-    covariates <- covariates[rownames(Y), , drop = FALSE]
-    return(list(dag = dag, coef = coef, Y = Y, group = group, covariates = covariates, coef_covariates = coef_covariates))
-  }
+  return(list(dag = dag, coef = coef, Y = Y, group = group))
 }

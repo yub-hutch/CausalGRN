@@ -4,15 +4,7 @@
 \alias{simulate_grn_guided_expression}
 \title{GRN-guided simulation of scRNA-seq data of wild-type and perturbed cells mimicking real data}
 \usage{
-simulate_grn_guided_expression(
-  d,
-  Y,
-  group,
-  min_coef,
-  max_coef,
-  cv,
-  covariates = NULL
-)
+simulate_grn_guided_expression(d, Y, group, min_coef, max_coef, cv, lib_sizes)
 }
 \arguments{
 \item{d}{Expected number of neighbors (in/out).}
@@ -27,7 +19,7 @@ simulate_grn_guided_expression(
 
 \item{cv}{Coefficient of variation for simulated normal distributions.}
 
-\item{covariates}{Cell covariates.}
+\item{lib_sizes}{Vector of cell library sizes.}
 }
 \value{
 List containing:
