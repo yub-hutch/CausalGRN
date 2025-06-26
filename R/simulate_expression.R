@@ -108,7 +108,7 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef, max_coef, cv, 
         } else {
           normal_means <- as.vector(coef[[v]][1] + log(1 + pts[[ko]][, parents, drop = FALSE]) %*% coef[[v]][-1])
           normal_sds <- abs(normal_means / cv)
-          lambdas <- exp(rnorm(n = nwt, mean = normal_means, sd = normal_sds))
+          lambdas <- exp(rnorm(n = npt[ko], mean = normal_means, sd = normal_sds))
           pts[[ko]][, v] <- rpois(n = npt[ko], lambda = lambdas * lib_sizes[group == ko])
           pts[[ko]][, v] <- pmin(pts[[ko]][, v], max_wt_value)
         }
