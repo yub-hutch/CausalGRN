@@ -4,7 +4,15 @@
 \alias{simulate_grn_guided_expression}
 \title{GRN-guided simulation of scRNA-seq data of wild-type and perturbed cells mimicking real data}
 \usage{
-simulate_grn_guided_expression(d, Y, group, min_coef, max_coef, cv, lib_sizes)
+simulate_grn_guided_expression(
+  d,
+  Y,
+  group,
+  min_coef = 0.3,
+  max_coef = 0.5,
+  center_normal_sd = 1,
+  center_ko_eff = 0.9
+)
 }
 \arguments{
 \item{d}{Expected number of neighbors (in/out).}
@@ -17,9 +25,9 @@ simulate_grn_guided_expression(d, Y, group, min_coef, max_coef, cv, lib_sizes)
 
 \item{max_coef}{Maximum value of simulated coefficients.}
 
-\item{cv}{Coefficient of variation for simulated normal distributions.}
+\item{center_normal_sd}{Center of standard deviations of latent normal variables. Gene specific SDs are sampled from Gamma distribution.}
 
-\item{lib_sizes}{Vector of cell library sizes.}
+\item{center_ko_eff}{Center of KO effectiveness. KO specific effectiveness is sampled from Beta distribution.}
 }
 \value{
 List containing:
