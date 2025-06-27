@@ -27,7 +27,7 @@ simulate_grn_guided_expression(
 
 \item{center_normal_sd}{Center of standard deviations of latent normal variables. Gene specific SDs are sampled from Gamma distribution.}
 
-\item{center_ko_eff}{Center of KO effectiveness. KO specific effectiveness is sampled from Beta distribution.}
+\item{center_ko_eff}{Center of KO efficacy. KO specific efficacy is sampled from Beta distribution.}
 }
 \value{
 List containing:

@@ -23,7 +23,7 @@ simulate_coef <- function(parents, b0, min_coef, max_coef) {
 #' @param min_coef Minimum value of simulated coefficients.
 #' @param max_coef Maximum value of simulated coefficients.
 #' @param center_normal_sd Center of standard deviations of latent normal variables. Gene specific SDs are sampled from Gamma distribution.
-#' @param center_ko_eff Center of KO effectiveness. KO specific effectiveness is sampled from Beta distribution.
+#' @param center_ko_eff Center of KO efficacy. KO specific efficacy is sampled from Beta distribution.
 #' @return List containing:
 #' \itemize{
 #'   \item \code{dag}: Simulated DAG.
@@ -75,12 +75,13 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef = 0.3, max_coef
   coef <- setNames(vector('list', ngene), genes)
   for (v in ordering) {
     parents <- igraph::neighbors(graph = dag, v = v, mode = 'in')$name
+    b0 <- log(wt_colmeans[v]) - 0.5 * normal_sds[v] ^ 2
     if (length(parents) == 0) {
-      u_wt[, v] <- rnorm(n = nwt, mean = log(wt_colmeans[v]), sd = normal_sds[v])
+      u_wt[, v] <- rnorm(n = nwt, mean = b0, sd = normal_sds[v])
       wt[, v] <- rpois(n = nwt, lambda = lib_sizes[group == 'WT'] * exp(u_wt[, v]))
       wt[, v] <- pmin(wt[, v], max_wt_value)
       for (ko in kos) {
-        u_pts[[ko]][, v] <- rnorm(n = npt[ko], mean = log(wt_colmeans[v]), sd = normal_sds[v])
+        u_pts[[ko]][, v] <- rnorm(n = npt[ko], mean = b0, sd = normal_sds[v])
         if (ko == v) {
           eff <- rbeta(n = npt[ko], shape1 = center_ko_eff * 50, shape2 = (1 - center_ko_eff) * 50)
           u_pts[[ko]][, v] <- u_pts[[ko]][, v] + log(1 - eff)
@@ -90,7 +91,7 @@ simulate_grn_guided_expression <- function(d, Y, group, min_coef = 0.3, max_coef
       }
     } else {
       while (TRUE) {
-        coef[[v]] <- simulate_coef(parents, b0 = log(wt_colmeans[v]), min_coef = min_coef, max_coef = max_coef)
+        coef[[v]] <- simulate_coef(parents, b0 = b0, min_coef = min_coef, max_coef = max_coef)
         normal_means <- as.vector(coef[[v]][1] + u_wt[, parents, drop = FALSE] %*% coef[[v]][-1])
         u_wt[, v] <- rnorm(n = nwt, mean = normal_means, sd = normal_sds[v])
         wt[, v] <- rpois(n = nwt, lambda = lib_sizes[group == 'WT'] * exp(u_wt[, v]))
