@@ -1,4 +1,4 @@
-#' Perform conditional independence tests on graph edges based on wild-type data
+#' Perform conditional independence tests on graph edges
 #'
 #' Applies conditional independence (CI) tests to each edge in the graph `G`. Edges are evaluated in parallel,
 #' and those found conditionally independent given a subset of variables are removed.
@@ -34,7 +34,7 @@
 #'   \item{done}{Logical indicating whether all edges reached the specified order.}
 #' }
 #' @export
-perform_ci_test_from_wildtype <- function(
+perform_ci_test <- function(
     G, order, max_order, count, Y, max_thr, min_n1, min_n2, alpha, min_abspcor, pMax, chisqMin, absPcorMin, Threshold, sampleSize, sepSet, ncores
 ) {
   edge_index <- get_edge_index(G)
@@ -132,7 +132,7 @@ perform_ci_test_from_wildtype <- function(
 }
 
 
-#' Infer graph skeleton via conditional independence tests based on wild-type data
+#' Infer graph skeleton via conditional independence tests
 #'
 #' Constructs graph skeleton by performing iterative conditional independence (CI) tests on gene expression data.
 #' Edges are removed based on statistical independence.
@@ -167,7 +167,7 @@ perform_ci_test_from_wildtype <- function(
 #' u <- cbind(g1 = u1, g2 = u2, g3 = u3)
 #' count <- apply(u, 2, function(x) rpois(n, lambda = exp(x)))
 #' Y <- log1p(count)
-#' skel <- infer_skeleton_from_wildtype(
+#' skel <- infer_skeleton(
 #'   count = count,
 #'   Y = Y,
 #'   alpha = 1e-3,
@@ -180,7 +180,7 @@ perform_ci_test_from_wildtype <- function(
 #' get_sepset(skel, 'g1', 'g3')
 #'
 #' @export
-infer_skeleton_from_wildtype <- function(
+infer_skeleton <- function(
     count, Y, alpha, min_abspcor, ncores, G = NULL, max_order = 1, max_thr = 10, min_n1 = 2000, min_n2 = 400,
     max_nchildren = Inf, max_nparent = Inf, sepset = TRUE
 ) {
@@ -212,7 +212,7 @@ infer_skeleton_from_wildtype <- function(
   while (any(G) && (order <= max_order)) {
     message('------------------------------------------------')
     message(paste0('Order = ', order))
-    res <- perform_ci_test_from_wildtype(
+    res <- perform_ci_test(
       G = G,
       order = order,
       max_order = max_order,

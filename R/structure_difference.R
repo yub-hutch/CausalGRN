@@ -52,7 +52,7 @@ structure_difference <- function(g, g0) {
 #' @export
 structure_difference_at_breaks <- function(pred, g0, ntops) {
   stopifnot('score' %in% names(pred))
-  pred = pred %>% dplyr::arrange(dplyr::desc(score))
+  pred = pred|> dplyr::arrange(dplyr::desc(score))
   ntops = sort(ntops[ntops <= nrow(pred)])
   do.call(rbind, lapply(ntops, function(ntop) {
     g = igraph::graph_from_data_frame(pred[seq(ntop), ])

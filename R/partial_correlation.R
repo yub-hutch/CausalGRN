@@ -32,12 +32,14 @@
 #' @export
 calc_pcor <- function(i, j, k, count, Y, max_thr, min_n1, min_n2) {
   selected_thr <- -1
-  for (thr in seq(max_thr, 0)) {
-    idx <- count[, k] > thr
-    if (sum(idx) < min_n1) next
-    if (sum((count[idx, i] > 0) & (count[idx, j] > 0)) < min_n2) next
-    selected_thr <- thr
-    break
+  if (max_thr >= 0) {
+    for (thr in seq(max_thr, 0)) {
+      idx <- count[, k] > thr
+      if (sum(idx) < min_n1) next
+      if (sum((count[idx, i] > 0) & (count[idx, j] > 0)) < min_n2) next
+      selected_thr <- thr
+      break
+    }
   }
   idx <- count[, k] > selected_thr
   res <- ppcor::pcor.test(x = Y[idx, i], y = Y[idx, j], z = Y[idx, k], method = 'pearson')
