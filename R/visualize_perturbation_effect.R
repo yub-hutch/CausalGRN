@@ -88,7 +88,7 @@ plot_cd_for_ko_pairs <- function(stat) {
   stat1 <- stat |> dplyr::filter(gene %in% ko) |> dplyr::filter(ko > gene)
   stat2 <- stat |> dplyr::filter(gene %in% ko) |> dplyr::filter(ko < gene)
   plot_data <- stat1 |> dplyr::inner_join(stat2, by = c(ko = "gene", gene = "ko"), suffix = c("_1", "_2"))
-  thr <- median(abs(plot_data$cd))
+  thr <- median(abs(stat$cd[stat$ko != stat$gene]))
   if (nrow(plot_data) > 1e4) {
     message('Sample 10000 data points.')
     plot_data <- plot_data |> dplyr::sample_n(size = 1e4)
