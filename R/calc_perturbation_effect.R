@@ -49,7 +49,7 @@ calc_perturbation_effect <- function(Y, group, ncores) {
   genes <- colnames(Y)
   if (!use_disk) {
     wt <- Y[group == 'WT', ]
-    stat <- do.call(rbind, pbmcapply::pbmcmapply(function(ko) {
+    stat <- do.call(rbind, pbmcapply::pbmcmapply(\(ko) {
       pt <- Y[group == ko, ]
       diffs <- colMeans(pt) - colMeans(wt)
       pooled_sds <- apply(rbind(wt, pt), 2, sd)
@@ -72,20 +72,20 @@ calc_perturbation_effect <- function(Y, group, ncores) {
     Y <- bigstatsr::as_FBM(Y, backingfile = 'Y_fbm') # Row and column names erased
     gc()
     message('Calculating DE statistics ...')
+    message('Pre-calculate all KO expressions in WT samples for parallel computation ...')
+    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', match(ko, genes)])
     # Do by gene chunks
     chunk_size <- 200
     chunks <- split(seq_len(ngene), f = ceiling(seq_len(ngene) / chunk_size))
     message(paste0('Number of batches: ', length(chunks)))
     message('------------------------------------------------------')
-    stat <- do.call(rbind, lapply(seq_along(chunks), function(i) {
+    stat <- do.call(rbind, lapply(seq_along(chunks), \(i) {
       message(paste0('Batch ', i))
       cols <- chunks[[i]]
       sub_Y <- Y[, cols, drop = FALSE] # Read data from disk to memory
       wt <- sub_Y[group == 'WT', , drop = FALSE]
-      sub_stat <- do.call(rbind, pbmcapply::pbmclapply(kos, function(ko) {
-        ko_col <- match(ko, genes)
-        ko_expr_wt <- Y[group == 'WT', ko_col]
-        ko_expr_all <- Y[, ko_col]
+      sub_stat <- do.call(rbind, pbmcapply::pbmclapply(kos, \(ko) {
+        ko_expr_wt <- ko_expr_wt_list[[ko]]
         pt <- sub_Y[group == ko, , drop = FALSE]
         diffs <- colMeans(pt) - colMeans(wt)
         pooled_sds <- apply(rbind(wt, pt), 2, sd)
@@ -103,6 +103,7 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       }, mc.cores = ncores))
       return(sub_stat)
     }))
+    unlink('Y_fbm.bk')
   }
   stat$wilcox_adj_pv = p.adjust(stat$wilcox_pv, method = 'BH')
   stat$t_adj_pv = p.adjust(stat$t_pv, method = 'BH')
