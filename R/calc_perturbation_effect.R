@@ -44,10 +44,10 @@ calc_perturbation_effect <- function(Y, group, ncores) {
   stopifnot('group must contain wild-type cells labeled as WT' = 'WT' %in% group)
   stopifnot('Remove groups with less than 50 cells' = all(table(group) >= 50))
   # Check potential memory issue
-  use_disk <- nrow(Y) > 10e3 && ncol(Y) > 1e3 && ncores >= 10
   kos <- setdiff(group, 'WT')
   genes <- colnames(Y)
-  if (!use_disk) {
+  use_batches <- nrow(Y) > 10e3 && ncol(Y) > 1e3 && ncores >= 10
+  if (!use_batches) {
     wt <- Y[group == 'WT', ]
     stat <- do.call(rbind, pbmcapply::pbmcmapply(\(ko) {
       pt <- Y[group == ko, ]
@@ -66,17 +66,9 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       )
     }, kos, SIMPLIFY = F, mc.cores = ncores))
   } else {
-    message('Y is a big matrix. Writing to disk ...')
-    ngene <- ncol(Y)
-    genes <- colnames(Y)
-    Y <- bigstatsr::as_FBM(Y, backingfile = 'Y_fbm') # Row and column names erased
-    gc()
-    message('Calculating DE statistics ...')
-    message('Pre-calculate all KO expressions in WT samples for parallel computation ...')
-    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', match(ko, genes)])
-    # Do by gene chunks
-    chunk_size <- 200
-    chunks <- split(seq_len(ngene), f = ceiling(seq_len(ngene) / chunk_size))
+    message('Calculating DE statistics in batches ...')
+    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', ko])
+    chunks <- split(seq_along(genes), f = ceiling(seq_along(genes) / 200))
     message(paste0('Number of batches: ', length(chunks)))
     message('------------------------------------------------------')
     stat <- do.call(rbind, lapply(seq_along(chunks), \(i) {
@@ -84,13 +76,12 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       cols <- chunks[[i]]
       sub_Y <- Y[, cols, drop = FALSE] # Read data from disk to memory
       wt <- sub_Y[group == 'WT', , drop = FALSE]
-      sub_stat <- do.call(rbind, pbmcapply::pbmclapply(kos, \(ko) {
-        ko_expr_wt <- ko_expr_wt_list[[ko]]
+      do.call(rbind, pbmcapply::pbmcmapply(\(ko, ko_expr_wt) {
         pt <- sub_Y[group == ko, , drop = FALSE]
         diffs <- colMeans(pt) - colMeans(wt)
         pooled_sds <- apply(rbind(wt, pt), 2, sd)
         cds <- diffs / pooled_sds
-        wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = F, correct = T)$pvalue
+        wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = FALSE, correct = TRUE)$pvalue
         t_pvs <- matrixTests::col_t_welch(wt, pt)$pvalue
         cors_pearson <- c(cor(ko_expr_wt, wt))
         cors_spearman <- c(cor(ko_expr_wt, wt, method = 'spearman'))
@@ -100,10 +91,8 @@ calc_perturbation_effect <- function(Y, group, ncores) {
           wilcox_pv = wilcox_pvs, t_pv = t_pvs,
           cor_pearson = cors_pearson, cor_spearman = cors_spearman
         )
-      }, mc.cores = ncores))
-      return(sub_stat)
+      }, kos, ko_expr_wt_list, SIMPLIFY = FALSE, mc.cores = ncores))
     }))
-    unlink('Y_fbm.bk')
   }
   stat$wilcox_adj_pv = p.adjust(stat$wilcox_pv, method = 'BH')
   stat$t_adj_pv = p.adjust(stat$t_pv, method = 'BH')
