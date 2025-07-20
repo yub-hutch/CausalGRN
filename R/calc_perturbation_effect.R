@@ -44,16 +44,16 @@ calc_perturbation_effect <- function(Y, group, ncores) {
   stopifnot('group must contain wild-type cells labeled as WT' = 'WT' %in% group)
   stopifnot('Remove groups with less than 50 cells' = all(table(group) >= 50))
   # Check potential memory issue
+  use_disk <- nrow(Y) > 10e3 && ncol(Y) > 1e3 && ncores >= 10
   kos <- setdiff(group, 'WT')
   genes <- colnames(Y)
-  use_batches <- nrow(Y) > 10e3 && ncol(Y) > 1e3 && ncores >= 10
-  if (!use_batches) {
+  if (!use_disk) {
     wt <- Y[group == 'WT', ]
-    wt_mean <- matrixStats::colMeans2(wt)
     stat <- do.call(rbind, pbmcapply::pbmcmapply(\(ko) {
       pt <- Y[group == ko, ]
-      diffs <- matrixStats::colMeans2(pt) - wt_mean
-      cds <- diffs / matrixStats::colSds(Y, rows = group %in% c('WT', ko))
+      diffs <- colMeans(pt) - colMeans(wt)
+      pooled_sds <- apply(rbind(wt, pt), 2, sd)
+      cds <- diffs / pooled_sds
       wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = FALSE, correct = TRUE)$pvalue
       t_pvs <- matrixTests::col_t_welch(wt, pt)$pvalue
       cors_pearson <- c(cor(wt[, ko], wt))
@@ -66,8 +66,13 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       )
     }, kos, SIMPLIFY = FALSE, mc.cores = ncores))
   } else {
-    message('Calculating DE statistics in batches ...')
-    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', ko])
+    message('Y is a big matrix. Writing to disk ...')
+    Y <- bigstatsr::as_FBM(Y, backingfile = 'Y_fbm') # Row and column names erased
+    for (i in seq_len(30)) gc()
+    message('Calculating DE statistics ...')
+    message('Pre-calculate all KO expressions in WT samples for parallel computation ...')
+    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', match(ko, genes)])
+    # Do by gene chunks
     chunks <- split(seq_along(genes), f = ceiling(seq_along(genes) / 200))
     message(paste0('Number of batches: ', length(chunks)))
     message('------------------------------------------------------')
@@ -76,11 +81,12 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       cols <- chunks[[i]]
       sub_Y <- Y[, cols, drop = FALSE] # Read data from disk to memory
       wt <- sub_Y[group == 'WT', , drop = FALSE]
-      wt_mean <- matrixStats::colMeans2(wt)
-      do.call(rbind, pbmcapply::pbmcmapply(\(ko, ko_expr_wt) {
+      sub_stat <- do.call(rbind, pbmcapply::pbmclapply(kos, \(ko) {
+        ko_expr_wt <- ko_expr_wt_list[[ko]]
         pt <- sub_Y[group == ko, , drop = FALSE]
-        diffs <- matrixStats::colMeans2(pt) - wt_mean
-        cds <- diffs / matrixStats::colSds(sub_Y, rows = group %in% c('WT', ko))
+        diffs <- colMeans(pt) - colMeans(wt)
+        pooled_sds <- apply(rbind(wt, pt), 2, sd)
+        cds <- diffs / pooled_sds
         wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = FALSE, correct = TRUE)$pvalue
         t_pvs <- matrixTests::col_t_welch(wt, pt)$pvalue
         cors_pearson <- c(cor(ko_expr_wt, wt))
@@ -91,8 +97,10 @@ calc_perturbation_effect <- function(Y, group, ncores) {
           wilcox_pv = wilcox_pvs, t_pv = t_pvs,
           cor_pearson = cors_pearson, cor_spearman = cors_spearman
         )
-      }, kos, ko_expr_wt_list, SIMPLIFY = FALSE, mc.cores = ncores))
+      }, mc.cores = ncores))
+      return(sub_stat)
     }))
+    unlink('Y_fbm.bk')
   }
   stat$wilcox_adj_pv = p.adjust(stat$wilcox_pv, method = 'BH')
   stat$t_adj_pv = p.adjust(stat$t_pv, method = 'BH')
