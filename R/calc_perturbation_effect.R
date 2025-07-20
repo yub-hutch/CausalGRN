@@ -49,12 +49,12 @@ calc_perturbation_effect <- function(Y, group, ncores) {
   use_batches <- nrow(Y) > 10e3 && ncol(Y) > 1e3 && ncores >= 10
   if (!use_batches) {
     wt <- Y[group == 'WT', ]
+    wt_mean <- matrixStats::colMeans2(wt)
     stat <- do.call(rbind, pbmcapply::pbmcmapply(\(ko) {
       pt <- Y[group == ko, ]
-      diffs <- colMeans(pt) - colMeans(wt)
-      pooled_sds <- apply(rbind(wt, pt), 2, sd)
-      cds <- diffs / pooled_sds
-      wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = F, correct = T)$pvalue
+      diffs <- matrixStats::colMeans2(pt) - wt_mean
+      cds <- diffs / matrixStats::colSds(Y, rows = group %in% c('WT', ko))
+      wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = FALSE, correct = TRUE)$pvalue
       t_pvs <- matrixTests::col_t_welch(wt, pt)$pvalue
       cors_pearson <- c(cor(wt[, ko], wt))
       cors_spearman <- c(cor(wt[, ko], wt, method = 'spearman'))
@@ -64,7 +64,7 @@ calc_perturbation_effect <- function(Y, group, ncores) {
         wilcox_pv = wilcox_pvs, t_pv = t_pvs,
         cor_pearson = cors_pearson, cor_spearman = cors_spearman
       )
-    }, kos, SIMPLIFY = F, mc.cores = ncores))
+    }, kos, SIMPLIFY = FALSE, mc.cores = ncores))
   } else {
     message('Calculating DE statistics in batches ...')
     ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', ko])
@@ -76,11 +76,11 @@ calc_perturbation_effect <- function(Y, group, ncores) {
       cols <- chunks[[i]]
       sub_Y <- Y[, cols, drop = FALSE] # Read data from disk to memory
       wt <- sub_Y[group == 'WT', , drop = FALSE]
+      wt_mean <- matrixStats::colMeans2(wt)
       do.call(rbind, pbmcapply::pbmcmapply(\(ko, ko_expr_wt) {
         pt <- sub_Y[group == ko, , drop = FALSE]
-        diffs <- colMeans(pt) - colMeans(wt)
-        pooled_sds <- apply(rbind(wt, pt), 2, sd)
-        cds <- diffs / pooled_sds
+        diffs <- matrixStats::colMeans2(pt) - wt_mean
+        cds <- diffs / matrixStats::colSds(sub_Y, rows = group %in% c('WT', ko))
         wilcox_pvs <- matrixTests::col_wilcoxon_twosample(wt, pt, exact = FALSE, correct = TRUE)$pvalue
         t_pvs <- matrixTests::col_t_welch(wt, pt)$pvalue
         cors_pearson <- c(cor(ko_expr_wt, wt))
