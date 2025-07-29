@@ -52,7 +52,10 @@ infer_skeleton_with_gp <- function(
   # Add edges connecting gene program and program genes
   pgenes_to_add <- setdiff(pgenes, igraph::neighbors(res$graph, v = pname)$name)
   if (length(pgenes_to_add)) {
-    edges_to_add <- as.vector(rbind(pname, pgenes_to_add))
+    edges_to_add <- c(
+      as.vector(rbind(pname, pgenes_to_add)),
+      as.vector(rbind(pgenes_to_add, pname))
+    )
     res$graph <- igraph::add_edges(res$graph, edges = edges_to_add)
     if (sepset) {
       p_idx <- match(pname, genes)
