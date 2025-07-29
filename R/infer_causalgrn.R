@@ -60,9 +60,7 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
     nodes <- igraph::neighbors(graph, ko, mode = 'all')$name
     nodes <- setdiff(nodes, visited_kos)
     visited_kos <- c(visited_kos, ko)
-    if (length(nodes) == 0) {
-      next
-    }
+    if (length(nodes) == 0) next
     for (node in nodes) {
       adj_pv <- adj_pv_mat[ko, node]
       if (node %in% kos) {
@@ -81,11 +79,9 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
       }
     }
   }
-  edge_ids_to_delete <- igraph::get.edge.ids(graph, edges_to_delete, directed = TRUE)
+  edge_ids_to_delete <- unique(igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE))
   edge_ids_to_delete <- edge_ids_to_delete[edge_ids_to_delete != 0]
-  if (length(edge_ids_to_delete) > 0) {
-    graph <- igraph::delete_edges(graph, edge_ids_to_delete)
-  }
+  if (length(edge_ids_to_delete) > 0) graph <- igraph::delete_edges(graph, edge_ids_to_delete)
   # Order 2 orientation
   if (max_order == 2) {
     edges_to_delete <- c()
@@ -95,17 +91,13 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
         igraph::neighbors(graph, ko, mode = 'in')$name
       )
       children <- setdiff(children, kos)
-      if (length(children) == 0) {
-        next
-      }
+      if (length(children) == 0) next
       for (child in children) {
         order2_nodes <- intersect(
           igraph::neighbors(graph, child, mode = 'in')$name,
           igraph::neighbors(graph, child, mode = 'out')$name
         )
-        if (length(order2_nodes) == 0) {
-          next
-        }
+        if (length(order2_nodes) == 0) next
         for (order2_node in order2_nodes) {
           order2_adj_pv <- adj_pv_mat[ko, order2_node]
           if (order2_adj_pv < alpha) {
@@ -116,17 +108,13 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
               mode = 'out'
             )[1, 1]
             is_child_on_all_paths <- (distance_wo_child >= max_dist + 1)
-            if (is_child_on_all_paths) {
-              edges_to_delete <- c(edges_to_delete, paste0(order2_node, '->', child))
-            }
+            if (is_child_on_all_paths) edges_to_delete <- c(edges_to_delete, paste0(order2_node, '->', child))
           }
         }
       }
     }
     # Only exclude edges with required evidence
-    if (length(edges_to_delete) > 0) {
-      edges_to_delete <- names(which(table(edges_to_delete) >= evidence))
-    }
+    if (length(edges_to_delete) > 0) edges_to_delete <- names(which(table(edges_to_delete) >= evidence))
     # Drop edges with conflict
     if (length(edges_to_delete)) {
       rev_edges_to_delete <- sub("^(.*)->(.*)$", "\\2->\\1", edges_to_delete)
@@ -136,7 +124,7 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
     # Delete remaining edges
     if (length(edges_to_delete) > 0) {
       edges_to_delete <- unlist(strsplit(edges_to_delete, '->'))
-      edge_ids_to_delete <- igraph::get.edge.ids(graph, edges_to_delete, directed = TRUE)
+      edge_ids_to_delete <- igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE)
       graph <- igraph::delete_edges(graph, edge_ids_to_delete)
     }
   }
