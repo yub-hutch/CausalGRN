@@ -50,14 +50,13 @@ infer_causalgrn_with_gp <- function(graph, stat, alpha, pname, pgenes, allow_pge
   # If not allow program genes as parents of non program genes
   if (!allow_pgene_out) {
     npgenes <- setdiff(genes, c(pname, pgenes))
-    if (length(npgenes) > 0) {
-      edges_to_delete = c(edges_to_delete, as.vector(rbind(
-        rep(pgenes, each = length(npgenes)), rep(npgenes, times = length(pgenes))
-      )))
+    if (length(npgenes)) {
+      from <- rep(pgenes, each = length(npgenes))
+      to <- rep(npgenes, times = length(pgenes))
+      edges_to_delete = c(edges_to_delete, c(rbind(from, to)))
     }
   }
-  edge_ids_to_delete <- unique(igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE))
-  edge_ids_to_delete <- edge_ids_to_delete[edge_ids_to_delete != 0]
-  if (length(edge_ids_to_delete) > 0) graph <- igraph::delete_edges(graph, edge_ids_to_delete)
+  eids_to_delete <- setdiff(igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE), 0)
+  if (length(eids_to_delete)) graph <- igraph::delete_edges(graph, eids_to_delete)
   return(graph)
 }

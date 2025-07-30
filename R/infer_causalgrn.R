@@ -79,9 +79,8 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
       }
     }
   }
-  edge_ids_to_delete <- unique(igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE))
-  edge_ids_to_delete <- edge_ids_to_delete[edge_ids_to_delete != 0]
-  if (length(edge_ids_to_delete) > 0) graph <- igraph::delete_edges(graph, edge_ids_to_delete)
+  edge_ids_to_delete <- setdiff(igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE), 0)
+  if (length(edge_ids_to_delete)) graph <- igraph::delete_edges(graph, edge_ids_to_delete)
   # Order 2 orientation
   if (max_order == 2) {
     edges_to_delete <- c()
@@ -114,7 +113,7 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
       }
     }
     # Only exclude edges with required evidence
-    if (length(edges_to_delete) > 0) edges_to_delete <- names(which(table(edges_to_delete) >= evidence))
+    if (length(edges_to_delete)) edges_to_delete <- names(which(table(edges_to_delete) >= evidence))
     # Drop edges with conflict
     if (length(edges_to_delete)) {
       rev_edges_to_delete <- sub("^(.*)->(.*)$", "\\2->\\1", edges_to_delete)
@@ -122,7 +121,7 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
       edges_to_delete <- edges_to_delete[!to_drop]
     }
     # Delete remaining edges
-    if (length(edges_to_delete) > 0) {
+    if (length(edges_to_delete)) {
       edges_to_delete <- unlist(strsplit(edges_to_delete, '->'))
       edge_ids_to_delete <- igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE)
       graph <- igraph::delete_edges(graph, edge_ids_to_delete)

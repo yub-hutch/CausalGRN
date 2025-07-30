@@ -18,8 +18,7 @@ infer_skeleton_with_gp(
   min_n1 = 2000,
   min_n2 = 400,
   max_nchildren = Inf,
-  max_nparent = Inf,
-  sepset = TRUE
+  max_nparent = Inf
 )
 }
 \arguments{
@@ -50,15 +49,9 @@ infer_skeleton_with_gp(
 \item{max_nchildren}{Maximum number of children a node can have (default is Inf).}
 
 \item{max_nparent}{Maximum number of parents a node can have (default is Inf).}
-
-\item{sepset}{Return separation set or not (default is \code{TRUE}).}
 }
 \value{
-A list with:
-\describe{
-  \item{graph}{An igraph object representing the inferred skeleton with edge attributes `pMax`, `chisqMin`, and `absPcorMin`.}
-  \item{sepSet}{List of separation sets for each node pair.}
-}
+igraph object.
 }
 \description{
 Constructs graph skeleton by performing iterative conditional independence (CI) tests on gene expression data.
