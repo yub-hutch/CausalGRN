@@ -5,6 +5,7 @@
 #' @param Y Matrix of normalized scRNA-seq data of wild-type and perturbed cells.
 #' @param group Named vector of cell label: 'WT' for wild-type cells, perturbed gene for perturbed cell.
 #' @param ncores Number of CPUs to use.
+#' @param use_disk Write huge data matrix to disk for computation. Determined automatically under default \code{NULL}.
 #' @return Tibble with columns:
 #' \itemize{
 #'   \item \code{ko}: Perturbed gene.
@@ -38,13 +39,13 @@
 #' )
 #' print(stat)
 #' @export
-calc_perturbation_effect <- function(Y, group, ncores) {
+calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
   # Check group
   stopifnot(identical(rownames(Y), names(group)))
   stopifnot('group must contain wild-type cells labeled as WT' = 'WT' %in% group)
   stopifnot('Remove groups with less than 50 cells' = all(table(group) >= 50))
   # Check potential memory issue
-  use_disk <- nrow(Y) > 10e3 && ncol(Y) > 1e3 && ncores >= 10
+  if (is.null(use_disk)) use_disk <- nrow(Y) > 10e3 && ncol(Y) > 1e3 && ncores >= 10
   kos <- setdiff(group, 'WT')
   genes <- colnames(Y)
   if (!use_disk) {

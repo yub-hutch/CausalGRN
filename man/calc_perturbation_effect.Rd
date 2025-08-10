@@ -4,7 +4,7 @@
 \alias{calc_perturbation_effect}
 \title{Calculate Perturbation Effect}
 \usage{
-calc_perturbation_effect(Y, group, ncores)
+calc_perturbation_effect(Y, group, ncores, use_disk = NULL)
 }
 \arguments{
 \item{Y}{Matrix of normalized scRNA-seq data of wild-type and perturbed cells.}
@@ -12,6 +12,8 @@ calc_perturbation_effect(Y, group, ncores)
 \item{group}{Named vector of cell label: 'WT' for wild-type cells, perturbed gene for perturbed cell.}
 
 \item{ncores}{Number of CPUs to use.}
+
+\item{use_disk}{Write huge data matrix to disk for computation. Determined automatically under default \code{NULL}.}
 }
 \value{
 Tibble with columns:
