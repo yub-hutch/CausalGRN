@@ -6,9 +6,10 @@
 #' @param group Vector indicating cell groups.
 #' @param graph Graph structure ('mean', 'all', or igraph object).
 #' @param ncores Number of cores for parallel computation.
+#' @param alpha The elasticnet mixing parameter. 1: lasso, 0: ridge.
 #' @return List of fitted models, one per gene.
 #' @export
-fit_expression_model <- function(Y, group, graph, ncores) {
+fit_expression_model <- function(Y, group, graph, ncores, alpha = 0) {
   p <- ncol(Y)
   genes <- colnames(Y)
   message(paste0('Fitting models for ', p, ' genes with ', nrow(Y), ' cells ...'))
@@ -35,7 +36,7 @@ fit_expression_model <- function(Y, group, graph, ncores) {
         family = "gaussian",
         nfolds = 5,
         nlambda = 100,
-        alpha = 0,
+        alpha = alpha,
         standardize = TRUE,
         intercept = TRUE,
         standardize.response = FALSE,

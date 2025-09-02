@@ -4,7 +4,7 @@
 \alias{fit_expression_model}
 \title{Fit Expression Model}
 \usage{
-fit_expression_model(Y, group, graph, ncores)
+fit_expression_model(Y, group, graph, ncores, alpha = 0)
 }
 \arguments{
 \item{Y}{Expression matrix (cells x genes).}
@@ -14,6 +14,8 @@ fit_expression_model(Y, group, graph, ncores)
 \item{graph}{Graph structure ('mean', 'all', or igraph object).}
 
 \item{ncores}{Number of cores for parallel computation.}
+
+\item{alpha}{The elasticnet mixing parameter. 1: lasso, 0: ridge.}
 }
 \value{
 List of fitted models, one per gene.
