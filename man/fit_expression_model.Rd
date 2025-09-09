@@ -2,24 +2,35 @@
 % Please edit documentation in R/expression_prediction.R
 \name{fit_expression_model}
 \alias{fit_expression_model}
-\title{Fit Expression Model}
+\title{Fit Gene Expression Model}
 \usage{
-fit_expression_model(Y, group, graph, ncores, alpha = 0)
+fit_expression_model(
+  Y,
+  group,
+  graph,
+  ncores,
+  method = c("lm", "lasso", "ridge")
+)
 }
 \arguments{
-\item{Y}{Expression matrix (cells x genes).}
+\item{Y}{A numeric matrix of expression data (cells x genes).}
 
-\item{group}{Vector indicating cell groups.}
+\item{group}{A character or factor vector indicating the group for each cell in Y.
+Used to exclude cells from a gene's own knockout when fitting its model.}
 
-\item{graph}{Graph structure ('mean', 'all', or igraph object).}
+\item{graph}{An igraph object or the character string 'all' specifying the
+regulatory structure.}
 
-\item{ncores}{Number of cores for parallel computation.}
+\item{ncores}{The number of cores for parallel computation.}
 
-\item{alpha}{The elasticnet mixing parameter. 1: lasso, 0: ridge.}
+\item{method}{The regression method to use. One of 'lm', 'lasso', or 'ridge'.}
 }
 \value{
-List of fitted models, one per gene.
+A numeric matrix `B` where rows are sources ('Intercept' and genes)
+  and columns are targets (genes). This matrix is guaranteed to have no
+  missing values.
 }
 \description{
-Fit predictive models for gene expression using specified graph structure.
+Fits a predictive model for each gene's expression based on a given graph
+structure and regression method.
 }
