@@ -59,10 +59,11 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
   p <- ncol(Y)
   genes <- colnames(Y)
   method <- match.arg(method)
-  if (is.object(graph)) {
-    stopifnot(setequal(genes, igraph::V(graph)$name), 'igraph' %in% class(graph))
+  if (inherits(graph, "igraph")) {
+    stopifnot(setequal(genes, igraph::V(graph)$name))
+    stopifnot(!igraph::any_loop(graph))
   } else {
-    stopifnot(graph == 'all')
+    stopifnot(identical(graph, "all"))
   }
 
   message(paste0('Fitting models for ', p, ' genes with ', nrow(Y), ' cells using method: ', method, ' ...'))
