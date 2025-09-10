@@ -263,15 +263,13 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, graph = N
     stopifnot('igraph' %in% class(graph), setequal(igraph::V(graph)$name, genes))
     graph_for_distances <- graph
 
-    # --- BUG FIX: Correctly check that the functional graph is a subset of the roadmap graph ---
     adj_matrix_functional <- t(B_propagator != 0)
     graph_functional <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
 
     # The number of edges in the difference between the two graphs must be 0.
-    stopifnot(
-      igraph::ecount(igraph::difference(graph_functional, graph_for_distances)) == 0,
-      "Functional graph from B contains edges not present in the provided roadmap graph."
-    )
+    if (!all(adj_matrix_functional <= adj_matrix_roadmap)) {
+      stop("Functional graph from B contains edges not present in the provided roadmap graph.")
+    }
   }
 
   # --- 3. Main Prediction Loop ---
