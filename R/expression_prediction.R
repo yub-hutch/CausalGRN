@@ -230,8 +230,7 @@ impute_effect_deltas <- function(B_propagator, known_deltas) {
 #' Predict Standard Perturbation Effect (Delta)
 #'
 #' Predicts the perturbation effect (delta from wild-type) for a set of KOs
-#' by propagating the initial perturbation through the network structure defined
-#' by the non-zero coefficients in B.
+#' by propagating the initial perturbation through the network structure.
 #'
 #' @param B A numeric matrix of regulatory coefficients where rows are sources
 #'   ('Intercept' and genes) and columns are targets (genes). This is the output
@@ -240,12 +239,14 @@ impute_effect_deltas <- function(B_propagator, known_deltas) {
 #'   perturbed genes (e.g., 0 for a full knockout).
 #' @param wt_expressions A named numeric vector of the wild-type expression levels
 #'   for each gene.
+#' @param graph An optional igraph object. If NULL (default), a functional graph is
+#'   derived from B. If provided, this "roadmap" graph is used for distance
+#'   calculations.
 #' @param max_dist The maximum distance from the KO gene for an effect to be
-#'   propagated. Distances are calculated on the functional graph derived from B.
-#'   Default is `Inf` (full propagation).
+#'   propagated. Default is `Inf` (full propagation).
 #' @return A numeric matrix of predicted delta values (rows are KOs, columns are genes).
 #' @export
-predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist = Inf) {
+predict_standard_effect <- function(B, ko_expressions, wt_expressions, graph = NULL, max_dist = Inf) {
   # --- 1. Input Validation and Setup ---
   genes <- names(wt_expressions)
   ko_genes <- names(ko_expressions)
@@ -258,15 +259,28 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist 
     all(ko_genes %in% genes)
   )
 
-  # --- 2. Prepare B Matrix and Functional Graph ---
-  # The propagation equation Δx = BΔx requires B to be in (targets x sources) format.
+  # --- 2. Prepare B Matrix and Determine Propagation Graph ---
   B_propagator <- t(B[genes, , drop = FALSE])
 
-  # Create a functional graph directly from the non-zero elements of the propagator matrix.
-  # The adjacency matrix for igraph must be (sources x targets), so we must transpose
-  # the logical version of B_propagator (which is targets x sources).
-  adj_matrix_functional <- t(B_propagator != 0)
-  graph_functional <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
+  if (is.null(graph)) {
+    # Default behavior: create functional graph from B matrix
+    adj_matrix_functional <- t(B_propagator != 0)
+    graph_for_distances <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
+  } else {
+    # Use the provided "roadmap" graph
+    stopifnot('igraph' %in% class(graph), setequal(igraph::V(graph)$name, genes))
+    graph_for_distances <- graph
+
+    # --- BUG FIX: Correctly check that the functional graph is a subset of the roadmap graph ---
+    adj_matrix_functional <- t(B_propagator != 0)
+    graph_functional <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
+
+    # The number of edges in the difference between the two graphs must be 0.
+    stopifnot(
+      igraph::ecount(igraph::difference(graph_functional, graph_for_distances)) == 0,
+      "Functional graph from B contains edges not present in the provided roadmap graph."
+    )
+  }
 
   # --- 3. Main Prediction Loop ---
   pred_delta_list <- lapply(ko_genes, function(ko_gene) {
@@ -274,11 +288,10 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist 
     # --- a. Define the Initial State (Known Deltas) ---
     known_deltas <- list()
 
-    # The primary perturbation is the change from WT to the provided ko_expression level.
     known_deltas[[ko_gene]] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
 
-    # Identify non-descendants using the new functional graph.
-    distances <- igraph::distances(graph_functional, v = ko_gene, mode = 'out')[1, ]
+    # Identify non-descendants using the chosen graph for distances.
+    distances <- igraph::distances(graph_for_distances, v = ko_gene, mode = 'out')[1, ]
     unchanged_genes <- names(which(is.infinite(distances) | distances > max_dist))
     for (ug in unchanged_genes) {
       known_deltas[[ug]] <- 0
@@ -288,7 +301,7 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist 
     known_deltas <- unlist(known_deltas, use.names = FALSE)
     names(known_deltas) <- clean_names
 
-    # --- b. Solve for the Unknown Gene Deltas (without intercept) ---
+    # --- b. Solve for the Unknown Gene Deltas ---
     imputed_deltas <- impute_effect_deltas(
       B_propagator = B_propagator,
       known_deltas = known_deltas
