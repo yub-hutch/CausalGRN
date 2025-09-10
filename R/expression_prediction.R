@@ -45,20 +45,20 @@ predict_mean_effect <- function(Y, group, train_kos, test_kos, wt_name = "WT") {
 #'
 #' @param Y A numeric matrix of expression data (cells x genes).
 #' @param group A character or factor vector indicating the group for each cell in Y.
-#'   Used to exclude cells from a gene's own knockout when fitting its model.
 #' @param graph An igraph object or the character string 'all' specifying the
 #'   regulatory structure.
 #' @param ncores The number of cores for parallel computation.
 #' @param method The regression method to use. One of 'lm', 'lasso', or 'ridge'.
 #' @return A numeric matrix `B` where rows are sources ('Intercept' and genes)
-#'   and columns are targets (genes). This matrix is guaranteed to have no
-#'   missing values.
+#'   and columns are targets (genes).
 #' @export
 fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lasso', 'ridge')) {
   # --- 1. Parameter and Graph Setup ---
   p <- ncol(Y)
   genes <- colnames(Y)
   method <- match.arg(method)
+
+  # --- UPDATED: More robust parameter checking ---
   if (inherits(graph, "igraph")) {
     stopifnot(setequal(genes, igraph::V(graph)$name))
     stopifnot(!igraph::any_loop(graph))
@@ -75,30 +75,26 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
   }
 
   # --- 2. Fit Models in Parallel ---
-  # pbmclapply iterates over each gene (target), returning a named vector of coefficients.
   model_list <- pbmcapply::pbmclapply(genes, function(gene) {
+    # Initialize the full coefficient vector for this target gene
+    coef_vector <- setNames(rep(0, p + 1), c('Intercept', genes))
+
     predictors <- igraph::neighbors(graph, gene, mode = 'in')$name
     samples <- which(group != gene)
 
-    # Default to an intercept-only model
-    fit_coefs <- c(mean(Y[samples, gene]))
-    names(fit_coefs) <- 'Intercept'
+    if (length(predictors) == 0) {
+      coef_vector['Intercept'] <- mean(Y[samples, gene])
+    } else {
+      # --- BUG FIX: Use explicit assignment with `predictors` to avoid name sanitization issues ---
+      if (length(predictors) == 1 || method == 'lm') {
+        fit <- lm(Y[samples, gene] ~ Y[samples, predictors])
 
-    if (length(predictors) > 0) {
-      # Use lm for a single predictor or when 'lm' is the chosen method
-      use_lm <- (length(predictors) == 1) || (method == 'lm')
-
-      if (use_lm) {
-        model_formula <- as.formula(paste0("`", gene, "` ~ ."))
-        model_data <- as.data.frame(Y[samples, c(gene, predictors)])
-        fit <- lm(model_formula, data = model_data)
-
-        # Only update if the fit was successful (no NAs)
         if (!any(is.na(stats::coef(fit)))) {
-          fit_coefs <- stats::coef(fit)
-          names(fit_coefs)[1] <- 'Intercept'
+          # Use the known, correct names for assignment
+          coef_vector[c('Intercept', predictors)] <- stats::coef(fit)
         } else {
           warning(paste("lm failed for gene", gene, "- fitting intercept only."))
+          coef_vector['Intercept'] <- mean(Y[samples, gene])
         }
 
       } else { # Use glmnet for lasso or ridge
@@ -111,26 +107,22 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
           alpha = alpha_val,
           intercept = TRUE
         )
-        fit_coefs <- as.matrix(stats::coef(cvfit, s = "lambda.min"))[,1]
-        names(fit_coefs)[1] <- 'Intercept'
+        fit_coefs <- as.matrix(stats::coef(cvfit, s = "lambda.min"))
+
+        # Use the known, correct names for assignment
+        coef_vector['Intercept'] <- fit_coefs[1, 1]
+        coef_vector[predictors] <- fit_coefs[-1, 1]
       }
     }
 
-    # Create the full coefficient vector for all potential sources
-    full_coef_vector <- setNames(rep(0, p + 1), c('Intercept', genes))
-    full_coef_vector[names(fit_coefs)] <- fit_coefs
-
-    return(full_coef_vector)
+    return(coef_vector)
   }, mc.cores = ncores)
 
   # --- 3. Assemble and Return the Final B Matrix ---
-  # Directly cbind the list of coefficient vectors. Each column represents a target gene.
-  # The resulting matrix is in (sources + Intercept) x targets format.
   B <- do.call(cbind, model_list)
   colnames(B) <- genes
 
   stopifnot(!any(is.na(B)))
-
   return(B)
 }
 

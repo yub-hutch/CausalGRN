@@ -4,7 +4,13 @@
 \alias{predict_standard_effect}
 \title{Predict Standard Perturbation Effect (Delta)}
 \usage{
-predict_standard_effect(B, ko_expressions, wt_expressions, max_dist = Inf)
+predict_standard_effect(
+  B,
+  ko_expressions,
+  wt_expressions,
+  graph = NULL,
+  max_dist = Inf
+)
 }
 \arguments{
 \item{B}{A numeric matrix of regulatory coefficients where rows are sources
@@ -17,15 +23,17 @@ perturbed genes (e.g., 0 for a full knockout).}
 \item{wt_expressions}{A named numeric vector of the wild-type expression levels
 for each gene.}
 
+\item{graph}{An optional igraph object. If NULL (default), a functional graph is
+derived from B. If provided, this "roadmap" graph is used for distance
+calculations.}
+
 \item{max_dist}{The maximum distance from the KO gene for an effect to be
-propagated. Distances are calculated on the functional graph derived from B.
-Default is `Inf` (full propagation).}
+propagated. Default is `Inf` (full propagation).}
 }
 \value{
 A numeric matrix of predicted delta values (rows are KOs, columns are genes).
 }
 \description{
 Predicts the perturbation effect (delta from wild-type) for a set of KOs
-by propagating the initial perturbation through the network structure defined
-by the non-zero coefficients in B.
+by propagating the initial perturbation through the network structure.
 }

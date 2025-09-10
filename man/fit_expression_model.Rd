@@ -15,8 +15,7 @@ fit_expression_model(
 \arguments{
 \item{Y}{A numeric matrix of expression data (cells x genes).}
 
-\item{group}{A character or factor vector indicating the group for each cell in Y.
-Used to exclude cells from a gene's own knockout when fitting its model.}
+\item{group}{A character or factor vector indicating the group for each cell in Y.}
 
 \item{graph}{An igraph object or the character string 'all' specifying the
 regulatory structure.}
@@ -27,10 +26,10 @@ regulatory structure.}
 }
 \value{
 A numeric matrix `B` where rows are sources ('Intercept' and genes)
-  and columns are targets (genes). This matrix is guaranteed to have no
-  missing values.
+  and columns are targets (genes).
 }
 \description{
 Fits a predictive model for each gene's expression based on a given graph
-structure and regression method.
+structure and regression method. This version includes a crucial fix to
+prevent errors from sanitized coefficient names.
 }
