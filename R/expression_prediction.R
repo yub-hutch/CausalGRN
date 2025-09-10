@@ -263,11 +263,13 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, graph = N
     stopifnot('igraph' %in% class(graph), setequal(igraph::V(graph)$name, genes))
     graph_for_distances <- graph
 
+    # Create the functional graph from B
     adj_matrix_functional <- t(B_propagator != 0)
     graph_functional <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
 
+    # Check that the functional graph is a subgraph of the roadmap graph.
     # The number of edges in the difference between the two graphs must be 0.
-    if (!all(adj_matrix_functional <= adj_matrix_roadmap)) {
+    if (igraph::ecount(igraph::difference(graph_functional, graph_for_distances)) > 0) {
       stop("Functional graph from B contains edges not present in the provided roadmap graph.")
     }
   }
@@ -277,7 +279,6 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, graph = N
 
     # --- a. Define the Initial State (Known Deltas) ---
     known_deltas <- list()
-
     known_deltas[[ko_gene]] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
 
     # Identify non-descendants using the chosen graph for distances.
@@ -287,6 +288,7 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, graph = N
       known_deltas[[ug]] <- 0
     }
 
+    # Correctly unlist to preserve clean names
     clean_names <- names(known_deltas)
     known_deltas <- unlist(known_deltas, use.names = FALSE)
     names(known_deltas) <- clean_names
