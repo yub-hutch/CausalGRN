@@ -190,126 +190,131 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
 #' @param known_deltas A named numeric vector of the initial, known deltas.
 #' @return A named numeric vector of the imputed delta values for the unknown genes.
 #' @noRd
-impute_effect_deltas <- function(B_propagator, known_deltas) {
+.impute_deltas <- function(B_propagator, known_deltas) {
   genes <- rownames(B_propagator)
   unknown_genes <- setdiff(genes, names(known_deltas))
-
-  if (length(unknown_genes) == 0) {
-    return(numeric(0))
-  }
+  if (length(unknown_genes) == 0) return(numeric(0))
 
   B_UU <- B_propagator[unknown_genes, unknown_genes, drop = FALSE]
 
-  # Stricter Stability Check with Tolerance
   epsilon <- 1e-8
   eigen_vals <- base::eigen(B_UU, only.values = TRUE)$values
   if (any(abs(eigen_vals) >= 1 - epsilon)) {
-    warning("System is unstable or nearly unstable (max |eigenvalue| >= 1 - epsilon). Results may be unreliable.")
+    warning("System may be unstable (max |eigenvalue| >= 1 - epsilon).")
   }
 
-  # Calculate the driving force from the known genes ONLY. The intercept is not part of the delta.
-  driving_force_known <- B_propagator[unknown_genes, names(known_deltas), drop = FALSE] %*% known_deltas
-
-  # Solve for the deltas of the unknown genes
+  driving_force <- B_propagator[unknown_genes, names(known_deltas), drop = FALSE] %*% known_deltas
   I_minus_B_UU <- diag(length(unknown_genes)) - B_UU
-  imputed_deltas <- base::solve(I_minus_B_UU, driving_force_known)
+  imputed <- base::solve(I_minus_B_UU, driving_force)
+  return(imputed[,1])
+}
 
-  # Ensure the output is a simple named vector
-  return(imputed_deltas[,1])
+#' Impute Absolute Expressions (Helper)
+#' Solves the linear system in the absolute space: x = α + Bx.
+#' @noRd
+.impute_absolute <- function(B_full, known_expressions) {
+  # B_full is targets x (sources + Intercept).
+  genes <- rownames(B_full)
+
+  unknown_genes <- setdiff(genes, names(known_expressions))
+  if (length(unknown_genes) == 0) return(numeric(0))
+
+  # B_no_intercept should be the square, gene-only part of the matrix.
+  B_no_intercept <- B_full[genes, genes, drop = FALSE]
+  B_UU <- B_no_intercept[unknown_genes, unknown_genes, drop = FALSE]
+
+  epsilon <- 1e-8
+  eigen_vals <- base::eigen(B_UU, only.values = TRUE)$values
+  if (any(abs(eigen_vals) >= 1 - epsilon)) {
+    warning("System may be unstable (max |eigenvalue| >= 1 - epsilon).")
+  }
+
+  known_with_intercept <- c(1, known_expressions)
+  names(known_with_intercept) <- c('Intercept', names(known_expressions))
+
+  # The driving force includes the intercept term.
+  driving_force <- B_full[unknown_genes, names(known_with_intercept), drop = FALSE] %*% known_with_intercept
+  I_minus_B_UU <- diag(length(unknown_genes)) - B_UU
+  imputed <- base::solve(I_minus_B_UU, driving_force)
+  return(imputed[,1])
 }
 
 
-#' Predict Standard Perturbation Effect (Delta)
+#' Predict Standard Perturbation Effect
 #'
-#' Predicts the perturbation effect (delta from wild-type) for a set of KOs
-#' by propagating the initial perturbation through the network structure.
+#' Predicts the perturbation effect for a set of KOs by propagating the
+#' initial perturbation through the network structure. Allows for modeling in
+#' either the "delta" or "absolute" expression space.
 #'
-#' @param B A numeric matrix of regulatory coefficients where rows are sources
-#'   ('Intercept' and genes) and columns are targets (genes). This is the output
-#'   of \code{\link{fit_expression_model}}.
-#' @param ko_expressions A named numeric vector of the expression levels for the
-#'   perturbed genes (e.g., 0 for a full knockout).
-#' @param wt_expressions A named numeric vector of the wild-type expression levels
-#'   for each gene.
-#' @param graph An optional igraph object. If NULL (default), a functional graph is
-#'   derived from B. If provided, this "roadmap" graph is used for distance
-#'   calculations.
-#' @param max_dist The maximum distance from the KO gene for an effect to be
-#'   propagated. Default is `Inf` (full propagation).
-#' @return A numeric matrix of predicted delta values (rows are KOs, columns are genes).
+#' @param B A numeric matrix of regulatory coefficients (sources x targets).
+#'   This is the output of \code{\link{fit_expression_model}}.
+#' @param ko_expressions A named vector of expression levels for perturbed genes.
+#' @param wt_expressions A named vector of wild-type expression levels.
+#' @param max_dist Maximum distance for effect propagation. Default is `Inf`.
+#'   Distances are calculated on the functional graph derived from B.
+#' @param space The modeling space. One of 'delta' (default, pure propagation)
+#'   or 'absolute' (includes intercept as a baseline shift).
+#' @return A numeric matrix of predicted delta values (KOs x genes).
 #' @export
-predict_standard_effect <- function(B, ko_expressions, wt_expressions, graph = NULL, max_dist = Inf) {
+predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist = Inf, space = c("delta", "absolute")) {
   # --- 1. Input Validation and Setup ---
+  space <- match.arg(space)
   genes <- names(wt_expressions)
   ko_genes <- names(ko_expressions)
   stopifnot(
     is.matrix(B), is.numeric(wt_expressions), is.numeric(ko_expressions),
-    !is.null(names(wt_expressions)), !is.null(names(ko_expressions)),
     identical(colnames(B), genes),
     identical(rownames(B), c('Intercept', genes)),
-    identical(names(wt_expressions), genes),
     all(ko_genes %in% genes)
   )
 
-  # --- 2. Prepare B Matrix and Determine Propagation Graph ---
+  # --- 2. Prepare B Matrix and Functional Graph ---
   B_propagator <- t(B[genes, , drop = FALSE])
-
-  if (is.null(graph)) {
-    # Default behavior: create functional graph from B matrix
-    adj_matrix_functional <- t(B_propagator != 0)
-    graph_for_distances <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
-  } else {
-    # Use the provided "roadmap" graph
-    stopifnot('igraph' %in% class(graph), setequal(igraph::V(graph)$name, genes))
-    graph_for_distances <- graph
-
-    # Create the functional graph from B
-    adj_matrix_functional <- t(B_propagator != 0)
-    graph_functional <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
-
-    # Check that the functional graph is a subgraph of the roadmap graph.
-    # The number of edges in the difference between the two graphs must be 0.
-    if (igraph::ecount(igraph::difference(graph_functional, graph_for_distances)) > 0) {
-      stop("Functional graph from B contains edges not present in the provided roadmap graph.")
-    }
-  }
+  adj_matrix_functional <- t(B_propagator != 0)
+  graph_for_distances <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
 
   # --- 3. Main Prediction Loop ---
   pred_delta_list <- lapply(ko_genes, function(ko_gene) {
 
-    # --- a. Define the Initial State (Known Deltas) ---
-    known_deltas <- list()
-    known_deltas[[ko_gene]] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
-
-    # Identify non-descendants using the chosen graph for distances.
     distances <- igraph::distances(graph_for_distances, v = ko_gene, mode = 'out')[1, ]
     unchanged_genes <- names(which(is.infinite(distances) | distances > max_dist))
-    for (ug in unchanged_genes) {
-      known_deltas[[ug]] <- 0
+
+    if (space == "delta") {
+      # --- Pure "Delta Space" Prediction ---
+      known_deltas <- list()
+      known_deltas[[ko_gene]] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
+      for (ug in unchanged_genes) known_deltas[[ug]] <- 0
+
+      clean_names <- names(known_deltas); known_deltas <- unlist(known_deltas, use.names = FALSE); names(known_deltas) <- clean_names
+
+      imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
+
+      full_delta_vector <- setNames(rep(0, length(genes)), genes)
+      full_delta_vector[names(known_deltas)] <- known_deltas
+      if (length(imputed_deltas) > 0) full_delta_vector[names(imputed_deltas)] <- imputed_deltas
+
+      return(full_delta_vector)
+
+    } else { # space == "absolute"
+      # --- "Absolute Space" Prediction (with Intercept) ---
+      pred_ko_abs <- wt_expressions # Start with WT as baseline
+      pred_ko_abs[ko_gene] <- ko_expressions[ko_gene]
+      # Unchanged genes are already at WT level.
+
+      known_expressions <- pred_ko_abs[c(ko_gene, unchanged_genes)]
+
+      imputed_abs <- .impute_absolute(B_full = t(B), known_expressions = known_expressions)
+
+      if (length(imputed_abs) > 0) {
+        pred_ko_abs[names(imputed_abs)] <- imputed_abs
+      }
+
+      # Convert the final absolute prediction to a delta
+      return(pred_ko_abs - wt_expressions)
     }
-
-    # Correctly unlist to preserve clean names
-    clean_names <- names(known_deltas)
-    known_deltas <- unlist(known_deltas, use.names = FALSE)
-    names(known_deltas) <- clean_names
-
-    # --- b. Solve for the Unknown Gene Deltas ---
-    imputed_deltas <- impute_effect_deltas(
-      B_propagator = B_propagator,
-      known_deltas = known_deltas
-    )
-
-    # --- c. Assemble the Full Delta Vector for this KO ---
-    full_delta_vector <- setNames(rep(0, length(genes)), genes)
-    full_delta_vector[names(known_deltas)] <- known_deltas
-    if (length(imputed_deltas) > 0) {
-      full_delta_vector[names(imputed_deltas)] <- imputed_deltas
-    }
-
-    return(full_delta_vector)
   })
 
-  # --- 4. Assemble and Return the Final Delta Matrix ---
+  # --- 4. Assemble and Return Final Matrix ---
   pred_matrix <- do.call(rbind, pred_delta_list)
   rownames(pred_matrix) <- ko_genes
 
