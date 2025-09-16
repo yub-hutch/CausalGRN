@@ -253,8 +253,7 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
 #' @param wt_expressions A named vector of wild-type expression levels.
 #' @param max_dist Maximum distance for effect propagation. Default is `Inf`.
 #'   Distances are calculated on the functional graph derived from B.
-#' @param space The modeling space. One of 'delta' (default, pure propagation)
-#'   or 'absolute' (includes intercept as a baseline shift).
+#' @param space The modeling space. delta: propagate in expression change space. absolute: propagate in expression space.
 #' @return A numeric matrix of predicted delta values (KOs x genes).
 #' @export
 predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist = Inf, space = c("delta", "absolute")) {
@@ -281,39 +280,32 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist 
     unchanged_genes <- names(which(is.infinite(distances) | distances > max_dist))
 
     if (space == "delta") {
-      # --- Pure "Delta Space" Prediction ---
-      known_deltas <- list()
-      known_deltas[[ko_gene]] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
-      for (ug in unchanged_genes) known_deltas[[ug]] <- 0
-
-      clean_names <- names(known_deltas)
-      known_deltas <- unlist(known_deltas, use.names = FALSE)
-      names(known_deltas) <- clean_names
+      known_deltas <- c()
+      known_deltas[ko_gene] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
+      known_deltas[unchanged_genes] <- 0
 
       imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
+      if (length(imputed_deltas) > 0) known_deltas[names(imputed_deltas)] <- imputed_deltas
+      stopifnot(
+        length(known_deltas) == length(genes),
+        setequal(names(known_deltas), genes)
+      )
+      return(known_deltas[genes])
 
-      full_delta_vector <- setNames(rep(0, length(genes)), genes)
-      full_delta_vector[names(known_deltas)] <- known_deltas
-      if (length(imputed_deltas) > 0) full_delta_vector[names(imputed_deltas)] <- imputed_deltas
-
-      return(full_delta_vector)
-
-    } else { # space == "absolute"
-      # --- "Absolute Space" Prediction (with Intercept) ---
-      pred_ko_abs <- wt_expressions # Start with WT as baseline
+    } else if (space == 'absolute') {
+      pred_ko_abs <- c()
       pred_ko_abs[ko_gene] <- ko_expressions[ko_gene]
-      # Unchanged genes are already at WT level.
+      pred_ko_abs[unchanged_genes] <- wt_expressions[unchanged_genes]
 
-      known_expressions <- pred_ko_abs[c(ko_gene, unchanged_genes)]
-
-      imputed_abs <- .impute_absolute(B_full = t(B), known_expressions = known_expressions)
-
-      if (length(imputed_abs) > 0) {
-        pred_ko_abs[names(imputed_abs)] <- imputed_abs
-      }
+      imputed_abs <- .impute_absolute(B_full = t(B), known_expressions = pred_ko_abs)
+      if (length(imputed_abs) > 0) pred_ko_abs[names(imputed_abs)] <- imputed_abs
 
       # Convert the final absolute prediction to a delta
-      return(pred_ko_abs - wt_expressions)
+      stopifnot(
+        length(pred_ko_abs) == length(genes),
+        setequal(names(pred_ko_abs), genes)
+      )
+      return(pred_ko_abs[genes] - wt_expressions)
     }
   })
 
