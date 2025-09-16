@@ -209,7 +209,8 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
   return(imputed[,1])
 }
 
-#' Impute Absolute Expressions (Helper)
+
+#' Impute Absolute Expressions
 #' Solves the linear system in the absolute space: x = α + Bx.
 #' @noRd
 .impute_absolute <- function(B_full, known_expressions) {
@@ -285,7 +286,9 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist 
       known_deltas[[ko_gene]] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
       for (ug in unchanged_genes) known_deltas[[ug]] <- 0
 
-      clean_names <- names(known_deltas); known_deltas <- unlist(known_deltas, use.names = FALSE); names(known_deltas) <- clean_names
+      clean_names <- names(known_deltas)
+      known_deltas <- unlist(known_deltas, use.names = FALSE)
+      names(known_deltas) <- clean_names
 
       imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
 
