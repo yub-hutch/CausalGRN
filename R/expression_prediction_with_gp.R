@@ -130,8 +130,7 @@ predict_standard_effect_with_gp <- function(
     is.matrix(B), is.numeric(wt_expressions), is.numeric(ko_expressions),
     identical(colnames(B), genes),
     identical(rownames(B), c('Intercept', genes)),
-    all(ko_genes %in% genes),
-    all(c(pname, pgenes) %in% genes),
+    all(c(pname, pgenes, ko_genes) %in% genes),
     pdirection %in% c(-1, 1),
     max_dist >= 2,
     all(pgenes %in% names(switch_coefs))
@@ -191,12 +190,12 @@ predict_standard_effect_with_gp <- function(
         known_deltas[ko_gene] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
         known_deltas[unchanged_genes] <- 0
 
-        imputed_deltas_nonsig <- .impute_deltas(B_propagator = B_propagator_nonsig, known_deltas = known_deltas)
+        sub_known_deltas <- known_deltas[intersect(names(known_deltas), non_signature_genes)]
+        imputed_deltas_nonsig <- .impute_deltas(B_propagator = B_propagator_nonsig, known_deltas = sub_known_deltas)
         if (length(imputed_deltas_nonsig) > 0) known_deltas[names(imputed_deltas_nonsig)] <- imputed_deltas_nonsig
 
         pname_parents_nonsig <- intersect(all_pname_parents, non_signature_genes)
         parent_deltas <- known_deltas[pname_parents_nonsig]
-
         if (length(parent_deltas) > 0 && any(parent_deltas != 0, na.rm = TRUE)) {
           deltas_pname <- sapply(pname_parents_nonsig, function(p) abs(switch_coefs[[p]][2]) * abs(parent_deltas[p]))
           strongest_source <- names(which.max(deltas_pname))
@@ -216,15 +215,15 @@ predict_standard_effect_with_gp <- function(
         pred_ko_abs[ko_gene] <- ko_expressions[ko_gene]
         pred_ko_abs[unchanged_genes] <- wt_expressions[unchanged_genes]
 
+        sub_pred_ko_abs <- pred_ko_abs[intersect(names(pred_ko_abs), non_signature_genes)]
         imputed_abs_nonsig <- .impute_absolute(
           B_full = t(B)[non_signature_genes, c('Intercept', non_signature_genes)],
-          known_expressions = pred_ko_abs
+          known_expressions = sub_pred_ko_abs
         )
         if (length(imputed_abs_nonsig) > 0) pred_ko_abs[names(imputed_abs_nonsig)] <- imputed_abs_nonsig
 
         pname_parents_nonsig <- intersect(all_pname_parents, non_signature_genes)
         parent_deltas <- pred_ko_abs[pname_parents_nonsig] - wt_expressions[pname_parents_nonsig]
-
         if (length(parent_deltas) > 0 && any(parent_deltas != 0, na.rm = TRUE)) {
           deltas_pname <- sapply(pname_parents_nonsig, function(p) abs(switch_coefs[[p]][2]) * abs(parent_deltas[p]))
           strongest_source <- names(which.max(deltas_pname))
