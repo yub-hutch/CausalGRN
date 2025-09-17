@@ -148,7 +148,7 @@ predict_standard_effect_with_gp <- function(
   all_distances <- igraph::distances(graph_for_distances, v = ko_genes, mode = 'out')
 
   # --- 3. Main Prediction Loop ---
-  pred_delta_list <- pbmclapply::pbmclapply(ko_genes, function(ko_gene) {
+  pred_delta_list <- pbmcapply::pbmclapply(ko_genes, function(ko_gene) {
 
     distances <- all_distances[ko_gene, ]
     unchanged_genes <- names(which(is.infinite(distances) | distances > max_dist))
