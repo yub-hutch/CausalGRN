@@ -30,6 +30,5 @@ A numeric matrix `B` where rows are sources ('Intercept' and genes)
 }
 \description{
 Fits a predictive model for each gene's expression based on a given graph
-structure and regression method. This version includes a crucial fix to
-prevent errors from sanitized coefficient names.
+structure and regression method.
 }

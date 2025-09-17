@@ -2,38 +2,34 @@
 % Please edit documentation in R/expression_prediction.R
 \name{predict_standard_effect}
 \alias{predict_standard_effect}
-\title{Predict Standard Perturbation Effect (Delta)}
+\title{Predict Standard Perturbation Effect}
 \usage{
 predict_standard_effect(
   B,
   ko_expressions,
   wt_expressions,
-  graph = NULL,
-  max_dist = Inf
+  max_dist = Inf,
+  space = c("delta", "absolute")
 )
 }
 \arguments{
-\item{B}{A numeric matrix of regulatory coefficients where rows are sources
-('Intercept' and genes) and columns are targets (genes). This is the output
-of \code{\link{fit_expression_model}}.}
+\item{B}{A numeric matrix of regulatory coefficients (sources x targets).
+This is the output of \code{\link{fit_expression_model}}.}
 
-\item{ko_expressions}{A named numeric vector of the expression levels for the
-perturbed genes (e.g., 0 for a full knockout).}
+\item{ko_expressions}{A named vector of expression levels for perturbed genes.}
 
-\item{wt_expressions}{A named numeric vector of the wild-type expression levels
-for each gene.}
+\item{wt_expressions}{A named vector of wild-type expression levels.}
 
-\item{graph}{An optional igraph object. If NULL (default), a functional graph is
-derived from B. If provided, this "roadmap" graph is used for distance
-calculations.}
+\item{max_dist}{Maximum distance for effect propagation. Default is `Inf`.
+Distances are calculated on the functional graph derived from B.}
 
-\item{max_dist}{The maximum distance from the KO gene for an effect to be
-propagated. Default is `Inf` (full propagation).}
+\item{space}{The modeling space. delta: propagate in expression change space. absolute: propagate in expression space.}
 }
 \value{
-A numeric matrix of predicted delta values (rows are KOs, columns are genes).
+A numeric matrix of predicted delta values (KOs x genes).
 }
 \description{
-Predicts the perturbation effect (delta from wild-type) for a set of KOs
-by propagating the initial perturbation through the network structure.
+Predicts the perturbation effect for a set of KOs by propagating the
+initial perturbation through the network structure. Allows for modeling in
+either the "delta" or "absolute" expression space.
 }
