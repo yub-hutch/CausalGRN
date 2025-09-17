@@ -198,7 +198,7 @@ predict_standard_effect_with_gp <- function(
         parent_deltas <- known_deltas[pname_parents_nonsig]
         if (length(parent_deltas) > 0 && any(parent_deltas != 0, na.rm = TRUE)) {
           deltas_pname <- sapply(pname_parents_nonsig, function(p) abs(switch_coefs[[p]][2]) * abs(parent_deltas[p]))
-          strongest_source <- names(which.max(deltas_pname))
+          strongest_source <- pname_parents_nonsig[which.max(deltas_pname)]
           delta_pname <- -pdirection * abs(switch_coefs[[strongest_source]][2]) * known_deltas[strongest_source]
         } else {
           delta_pname <- 0
@@ -226,7 +226,7 @@ predict_standard_effect_with_gp <- function(
         parent_deltas <- pred_ko_abs[pname_parents_nonsig] - wt_expressions[pname_parents_nonsig]
         if (length(parent_deltas) > 0 && any(parent_deltas != 0, na.rm = TRUE)) {
           deltas_pname <- sapply(pname_parents_nonsig, function(p) abs(switch_coefs[[p]][2]) * abs(parent_deltas[p]))
-          strongest_source <- names(which.max(deltas_pname))
+          strongest_source <- pname_parents_nonsig[which.max(deltas_pname)]
           delta_strongest_source <- pred_ko_abs[strongest_source] - wt_expressions[strongest_source]
           delta_pname <- -pdirection * abs(switch_coefs[[strongest_source]][2]) * delta_strongest_source
         } else {
