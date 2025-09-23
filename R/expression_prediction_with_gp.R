@@ -15,14 +15,19 @@
 #' @param method The regression method for the main B matrix. One of 'lm', 'lasso', or 'ridge'.
 #' @param pgene_parent_set A character string specifying the allowed set of
 #'   regulators for signature genes. One of 'all', 'non_signature', or 'hub_only'.
+#' @param pname_to_pgenes_only A logical value. If `TRUE` (default), all
+#'   potential regulatory links from the hub node (`pname`) to non-signature
+#'   genes are removed from the graph prior to model fitting.
 #' @return A list with two components:
 #'   \item{B_matrix}{The main regulatory matrix (sources x targets).}
 #'   \item{switch_coefficients}{A list where each element is the named coefficient
 #'     vector from the univariate regression of the hub against one of its parents.}
 #' @export
-fit_expression_model_with_gp <- function(Y, group, graph, pname, pgenes, ncores,
-                                         method = c('ridge', 'lasso', 'lm'),
-                                         pgene_parent_set = c('all', 'non_signature', 'hub_only')) {
+fit_expression_model_with_gp <- function(
+    Y, group, graph, pname, pgenes, ncores, method = c('lm', 'ridge', 'lasso'),
+    pgene_parent_set = c('all', 'non_signature', 'hub_only'),
+    pname_to_pgenes_only = TRUE
+) {
 
   # --- 1. Parameter Validation ---
   all_nodes <- colnames(Y)
@@ -73,6 +78,21 @@ fit_expression_model_with_gp <- function(Y, group, graph, pname, pgenes, ncores,
     adj_matrix[disallowed_parents, pgenes] <- 0
     # Convert back to an igraph object
     graph_for_B <- igraph::graph_from_adjacency_matrix(adj_matrix, mode = 'directed')
+  }
+
+  # Create a modified graph based on the pname_to_pgenes_only rule
+  if (pname_to_pgenes_only) {
+    # Convert the graph to an adjacency matrix for modification
+    adj_matrix_for_B <- igraph::as_adjacency_matrix(graph_for_B, sparse = FALSE)
+
+    # Identify the non-signature genes
+    non_signature_genes <- setdiff(all_nodes, c(pname, pgenes))
+
+    # Set the connections from the source (pname) to the non-signature targets to 0
+    adj_matrix_for_B[pname, non_signature_genes] <- 0
+
+    # Convert the modified matrix back into a graph object
+    graph_for_B <- igraph::graph_from_adjacency_matrix(adj_matrix_for_B, mode = 'directed')
   }
 
   # Call the existing, robust function to fit the B matrix

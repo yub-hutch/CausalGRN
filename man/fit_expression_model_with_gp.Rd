@@ -11,8 +11,9 @@ fit_expression_model_with_gp(
   pname,
   pgenes,
   ncores,
-  method = c("ridge", "lasso", "lm"),
-  pgene_parent_set = c("all", "non_signature", "hub_only")
+  method = c("lm", "ridge", "lasso"),
+  pgene_parent_set = c("all", "non_signature", "hub_only"),
+  pname_to_pgenes_only = TRUE
 )
 }
 \arguments{
@@ -32,6 +33,10 @@ fit_expression_model_with_gp(
 
 \item{pgene_parent_set}{A character string specifying the allowed set of
 regulators for signature genes. One of 'all', 'non_signature', or 'hub_only'.}
+
+\item{pname_to_pgenes_only}{A logical value. If `TRUE` (default), all
+potential regulatory links from the hub node (`pname`) to non-signature
+genes are removed from the graph prior to model fitting.}
 }
 \value{
 A list with two components:
