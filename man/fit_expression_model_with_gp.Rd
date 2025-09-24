@@ -2,7 +2,7 @@
 % Please edit documentation in R/expression_prediction_with_gp.R
 \name{fit_expression_model_with_gp}
 \alias{fit_expression_model_with_gp}
-\title{Fit Expression Model with a Gene Program}
+\title{Fit Expression Model and Learn Average SCOPE Effect}
 \usage{
 fit_expression_model_with_gp(
   Y,
@@ -10,9 +10,10 @@ fit_expression_model_with_gp(
   graph,
   pname,
   pgenes,
+  de_true,
+  stat,
   ncores,
   method = c("lm", "ridge", "lasso"),
-  pgene_parent_set = c("all", "non_signature", "hub_only"),
   pname_to_pgenes_only = TRUE
 )
 }
@@ -27,27 +28,25 @@ fit_expression_model_with_gp(
 
 \item{pgenes}{A character vector of the signature genes regulated by the hub.}
 
+\item{de_true}{A ground truth matrix of DE values (KOs x genes) for the
+training set, used to calculate the average SCOPE effect.}
+
+\item{stat}{A long-format data frame of statistics for the training set,
+used to identify KOs that trigger the hub.}
+
 \item{ncores}{The number of cores for parallel computation.}
 
 \item{method}{The regression method for the main B matrix. One of 'lm', 'lasso', or 'ridge'.}
 
-\item{pgene_parent_set}{A character string specifying the allowed set of
-regulators for signature genes. One of 'all', 'non_signature', or 'hub_only'.}
-
-\item{pname_to_pgenes_only}{A logical value. If `TRUE` (default), all
-potential regulatory links from the hub node (`pname`) to non-signature
-genes are removed from the graph prior to model fitting.}
+\item{pname_to_pgenes_only}{A logical to constrain hub effects to signature genes.}
 }
 \value{
 A list with two components:
   \item{B_matrix}{The main regulatory matrix (sources x targets).}
-  \item{switch_coefficients}{A list where each element is the named coefficient
-    vector from the univariate regression of the hub against one of its parents.}
+  \item{scope_mean_effect}{A named vector of the average DE for the hub and
+    signature genes, calculated from training KOs that trigger the hub.}
 }
 \description{
-This function prepares the two key components needed for the sophisticated
-hybrid prediction model. It leverages the standard \code{\link{fit_expression_model}}
-to learn the main linear propagator (B matrix) after applying specific graph
-modifications, and separately learns the robust, univariate "switch"
-coefficients for the hub's triggers.
+Learns the linear GRN model (B matrix) and calculates the average observed
+effect on the SCOPE signature from the provided training data.
 }

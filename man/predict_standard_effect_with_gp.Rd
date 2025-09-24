@@ -2,53 +2,43 @@
 % Please edit documentation in R/expression_prediction_with_gp.R
 \name{predict_standard_effect_with_gp}
 \alias{predict_standard_effect_with_gp}
-\title{Predict Perturbation Effect with a Gene Program Switch}
+\title{Predict Perturbation Effect Using a Data-Driven SCOPE Imputation}
 \usage{
 predict_standard_effect_with_gp(
   B,
-  switch_coefs,
+  scope_mean_effect,
   ko_expressions,
   wt_expressions,
   pname,
   pgenes,
-  pdirection,
   max_dist = Inf,
-  space = c("delta", "absolute"),
   ncores = 1
 )
 }
 \arguments{
-\item{B}{A numeric matrix of regulatory coefficients (sources x targets),
-including the hub node. This is the output of \code{\link{fit_expression_model_with_gp}}.}
+\item{B}{A numeric matrix of regulatory coefficients (sources x targets).}
 
-\item{switch_coefs}{A named list of univariate regression coefficients for the
-hub's parents. The function assumes that all `pgenes` are parents of the
-hub and thus present as names in this list.}
+\item{scope_mean_effect}{A named vector of the average training DE for the hub
+and signature genes.}
 
 \item{ko_expressions}{A named vector of expression levels for perturbed genes.}
 
-\item{wt_expressions}{A named vector of WT expressions (including the hub node).}
+\item{wt_expressions}{A named vector of WT expressions.}
 
 \item{pname}{The name of the hub node (e.g., "PC1").}
 
 \item{pgenes}{A character vector of the signature genes.}
 
-\item{pdirection}{An integer (-1 or 1) specifying the consistent direction
-of the switch effect on the hub. Set as 1 if pname increases under perturbation,
--1 if pname decreases under perturbation.}
+\item{max_dist}{Maximum distance for effect propagation.}
 
-\item{max_dist}{Maximum distance for effect propagation. Default is `Inf`.
-Distances are calculated on the functional graph derived from B.}
-
-\item{space}{The modeling space. delta: propagate in expression change space. absolute: propagate in expression space.}
-
-\item{ncores}{The number of cores for parallel computation.}
+\item{ncores}{Number of cores for parallel computation.}
 }
 \value{
-A numeric matrix of predicted delta values (KOs x genes, including pname).
+A numeric matrix of predicted delta values (KOs x genes).
 }
 \description{
-This function implements a two-stage prediction method in presence of a gene program switch.
-It partitions the network and solves for components in a logical order to
-correctly handle non-linear "switch" effects at a central hub (pname).
+Predicts KO effects using a hybrid model. If a KO is predicted to affect the
+SCOPE signature, the effect on the hub and signature genes is imputed using a
+pre-calculated average effect. Effects on non-signature genes are then
+calculated using a linear solver.
 }
