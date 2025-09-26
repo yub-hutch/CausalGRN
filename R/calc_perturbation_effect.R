@@ -49,9 +49,9 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
   kos <- setdiff(group, 'WT')
   genes <- colnames(Y)
   if (!use_disk) {
-    wt <- Y[group == 'WT', ]
+    wt <- Y[group == 'WT', , drop = FALSE]
     stat <- do.call(rbind, pbmcapply::pbmcmapply(\(ko) {
-      pt <- Y[group == ko, ]
+      pt <- Y[group == ko, , drop = FALSE]
       diffs <- colMeans(pt) - colMeans(wt)
       pooled_sds <- apply(rbind(wt, pt), 2, sd)
       cds <- diffs / pooled_sds
@@ -72,7 +72,7 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
     for (i in seq_len(30)) gc()
     message('Calculating DE statistics ...')
     message('Pre-calculate all KO expressions in WT samples for parallel computation ...')
-    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', match(ko, genes)])
+    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', match(ko, genes), drop = FALSE])
     # Do by gene chunks
     chunks <- split(seq_along(genes), f = ceiling(seq_along(genes) / 200))
     message(paste0('Number of batches: ', length(chunks)))
