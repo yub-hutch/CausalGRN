@@ -72,7 +72,7 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
     for (i in seq_len(30)) gc()
     message('Calculating DE statistics ...')
     message('Pre-calculate all KO expressions in WT samples for parallel computation ...')
-    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', match(ko, genes), drop = FALSE])
+    ko_expr_wt_list <- sapply(kos, simplify = FALSE, \(ko) Y[group == 'WT', match(ko, genes)])
     # Do by gene chunks
     chunks <- split(seq_along(genes), f = ceiling(seq_along(genes) / 200))
     message(paste0('Number of batches: ', length(chunks)))
