@@ -2,52 +2,38 @@
 % Please edit documentation in R/expression_prediction_with_gp.R
 \name{fit_expression_model_with_gp}
 \alias{fit_expression_model_with_gp}
-\title{Fit Expression Model with a Gene Program}
+\title{Fit a Two-Stage Portability Prediction Model}
 \usage{
 fit_expression_model_with_gp(
   Y,
   group,
   graph,
+  source_effects,
   pname,
   pgenes,
-  ncores,
-  method = c("lm", "ridge", "lasso"),
-  pgene_parent_set = c("all", "non_signature", "hub_only"),
-  pname_to_pgenes_only = TRUE
+  ncores
 )
 }
 \arguments{
-\item{Y}{A numeric matrix of expression data (cells x genes), including the hub node.}
+\item{Y}{A numeric matrix of expression data for the target dataset.}
 
-\item{group}{A character or factor vector indicating the group for each cell in Y.}
+\item{group}{A character vector for the cell groups in Y.}
 
-\item{graph}{An igraph object representing the full regulatory structure.}
+\item{graph}{An igraph object for the target dataset.}
 
-\item{pname}{A character string for the name of the hub node (e.g., "PC1").}
+\item{source_effects}{A named list of data frames with KO effects from source datasets.}
 
-\item{pgenes}{A character vector of the signature genes regulated by the hub.}
+\item{pname}{The name of the hub node (e.g., "PC1").}
+
+\item{pgenes}{A character vector of the signature genes.}
 
 \item{ncores}{The number of cores for parallel computation.}
-
-\item{method}{The regression method for the main B matrix. One of 'lm', 'lasso', or 'ridge'.}
-
-\item{pgene_parent_set}{A character string specifying the allowed set of
-regulators for signature genes. One of 'all', 'non_signature', or 'hub_only'.}
-
-\item{pname_to_pgenes_only}{A logical value. If `TRUE` (default), all
-potential regulatory links from the hub node (`pname`) to non-signature
-genes are removed from the graph prior to model fitting.}
 }
 \value{
-A list with two components:
-  \item{B_matrix}{The main regulatory matrix (sources x targets).}
-  \item{switch_coefficients}{A list where each element is the named coefficient
-    vector from the univariate regression of the hub against one of its parents.}
+A list containing the `B_matrix` and a list of trained `portability_models`.
 }
 \description{
-This function prepares the two key components needed for the sophisticated
-hybrid prediction model. It leverages the standard \code{\link{fit_expression_model}}
-to learn the main linear propagator (B matrix) after applying specific graph
-modifications, and separately learns the robust, univariate "switch"
-coefficients for the hub's triggers.
+Trains two model components: a standard GRN model (B_matrix) for the target
+dataset, and a flexible set of portability models to predict the SCOPE
+effect using information from source datasets.
 }
