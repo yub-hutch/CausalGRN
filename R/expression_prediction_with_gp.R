@@ -139,6 +139,7 @@ predict_standard_effect_with_gp <- function(
     }
     return(0)
   })
+  names(predicted_pname_deltas) <- ko_genes
 
   # --- 3. Stage 2: Propagate Effects through the GRN ---
   message("  Stage 2: Propagating effects through the GRN...")
@@ -153,7 +154,6 @@ predict_standard_effect_with_gp <- function(
     imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
     if (length(imputed_deltas) > 0) known_deltas[names(imputed_deltas)] <- imputed_deltas
 
-    # MODIFIED: Use a strict check for completeness
     stopifnot(
       "Prediction did not return a value for all genes." =
         setequal(names(known_deltas), genes),
