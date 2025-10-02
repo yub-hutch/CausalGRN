@@ -32,8 +32,14 @@ fit_expression_model_with_gp <- function(
   # --- 2. Learn the B Matrix for the Target Dataset ---
   message("Step 1/2: Learning main B matrix for the target dataset...")
 
+  # Create a constrained graph using a direct adjacency matrix operation
+  # to enforce that pgenes are only parented by pname.
+  adj_matrix <- as.matrix(igraph::as_adjacency_matrix(graph))
+  adj_matrix[setdiff(rownames(adj_matrix), pname), pgenes] <- 0
+  constrained_graph <- igraph::graph_from_adjacency_matrix(adj_matrix, mode = 'directed')
+
   B_matrix <- fit_expression_model(
-    Y = Y, group = group, graph = graph,
+    Y = Y, group = group, graph = constrained_graph,
     ncores = ncores,
     method = 'lm'
   )
