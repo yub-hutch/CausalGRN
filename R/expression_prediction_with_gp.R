@@ -107,7 +107,6 @@ predict_standard_effect_with_gp <- function(
   # --- 1. Setup ---
   genes <- names(wt_expressions)
   ko_genes <- names(ko_expressions)
-  stopifnot(all(ko_genes %in% source_effects[[1]]$ko)) # A basic check
 
   source_names <- names(portability_models)[names(portability_models) != 'both']
 
