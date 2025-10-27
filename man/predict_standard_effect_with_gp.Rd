@@ -10,15 +10,13 @@ predict_standard_effect_with_gp(
   source_effects,
   ko_expressions,
   wt_expressions,
-  pname,
-  max_dist = Inf,
-  ncores = 1
+  pname
 )
 }
 \arguments{
 \item{B}{A numeric matrix of regulatory coefficients.}
 
-\item{portability_models}{A named list of trained `lm` objects.}
+\item{portability_models}{A named list of trained `lm` objects and a fallback.}
 
 \item{source_effects}{A named list of data frames with predictor variables.}
 
@@ -27,14 +25,11 @@ predict_standard_effect_with_gp(
 \item{wt_expressions}{A named vector of WT expressions for the target dataset.}
 
 \item{pname}{The name of the hub node.}
-
-\item{max_dist}{Maximum distance for effect propagation.}
-
-\item{ncores}{Number of cores for parallel computation.}
 }
 \value{
 A numeric matrix of predicted delta values for the test KOs.
 }
 \description{
-Predict Perturbation Effect Using a Two-Stage Portability Model
+Predicts the perturbation effect by matching test KOs to the best-available
+pre-trained portability model and propagating the effect.
 }

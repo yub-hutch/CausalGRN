@@ -30,10 +30,11 @@ fit_expression_model_with_gp(
 \item{ncores}{The number of cores for parallel computation.}
 }
 \value{
-A list containing the `B_matrix` and a list of trained `portability_models`.
+A list containing `B_matrix` and `portability_models`.
+  `portability_models` contains a model for each combination of sources,
+  plus a `mean_fallback` value.
 }
 \description{
-Trains two model components: a standard GRN model (B_matrix) for the target
-dataset, and a flexible set of portability models to predict the SCOPE
-effect using information from source datasets.
+Trains a GRN model and a set of hierarchically inclusive portability models
+for all combinations of source datasets.
 }
