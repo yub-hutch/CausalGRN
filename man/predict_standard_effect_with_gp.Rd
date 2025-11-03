@@ -10,13 +10,17 @@ predict_standard_effect_with_gp(
   source_effects,
   ko_expressions,
   wt_expressions,
-  pname
+  pname,
+  graph = NULL,
+  scale_pname = TRUE,
+  ancestors_only = FALSE,
+  fallback_strategy = "pname_mean_propagate"
 )
 }
 \arguments{
 \item{B}{A numeric matrix of regulatory coefficients.}
 
-\item{portability_models}{A named list of trained `lm` objects and a fallback.}
+\item{portability_models}{A named list of trained models and fallback values.}
 
 \item{source_effects}{A named list of data frames with predictor variables.}
 
@@ -25,6 +29,14 @@ predict_standard_effect_with_gp(
 \item{wt_expressions}{A named vector of WT expressions for the target dataset.}
 
 \item{pname}{The name of the hub node.}
+
+\item{graph}{An igraph object, required if `ancestors_only = TRUE`.}
+
+\item{scale_pname}{Logical. If TRUE, apply the stored variance calibration.}
+
+\item{ancestors_only}{Logical. If TRUE, only apply portability models to KOs that are ancestors of `pname` in the `graph`.}
+
+\item{fallback_strategy}{Character. Action if no source data is found or KO is not an ancestor: "pname_mean_propagate", "pname_zero_propagate", or "all_genes_mean".}
 }
 \value{
 A numeric matrix of predicted delta values for the test KOs.

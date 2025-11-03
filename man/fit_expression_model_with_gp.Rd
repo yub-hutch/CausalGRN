@@ -11,7 +11,9 @@ fit_expression_model_with_gp(
   source_effects,
   pname,
   pgenes,
-  ncores
+  ncores,
+  constrain_graph = TRUE,
+  alpha = 0.05
 )
 }
 \arguments{
@@ -28,11 +30,13 @@ fit_expression_model_with_gp(
 \item{pgenes}{A character vector of the signature genes.}
 
 \item{ncores}{The number of cores for parallel computation.}
+
+\item{constrain_graph}{Logical. If TRUE, constrain pgenes to only have pname as a parent before fitting the GRN.}
+
+\item{alpha}{Significance level threshold (F-statistic p-value) to determine if a portability model is considered valid.}
 }
 \value{
-A list containing `B_matrix` and `portability_models`.
-  `portability_models` contains a model for each combination of sources,
-  plus a `mean_fallback` value.
+A list containing `B_matrix` and `portability_models`. `portability_models` contains a model for each combination of sources, plus fallback values (`fallback_pname_delta`, `fallback_all_gene_deltas`).
 }
 \description{
 Trains a GRN model and a set of hierarchically inclusive portability models
