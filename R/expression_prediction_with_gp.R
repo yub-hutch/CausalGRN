@@ -12,7 +12,7 @@
 #' @param ncores The number of cores for parallel computation.
 #' @param constrain_graph Logical. If TRUE, constrain pgenes to only have pname as a parent before fitting the GRN.
 #' @param alpha Significance level threshold (F-statistic p-value) to determine if a portability model is considered valid.
-#' @return A list containing `B_matrix` and `portability_models`. `portability_models` contains a model for each combination of sources, plus fallback values (`fallback_pname_delta`, `fallback_all_gene_deltas`).
+#' @return A list containing `B_matrix` and `portability_models`. `portability_models` contains a model for each combination of sources, plus fallback values (`fallback_pname_delta`, `fallback_pgenes_deltas`).
 #' @export
 fit_expression_model_with_gp <- function(
     Y, group, graph, source_effects, pname, pgenes, ncores,
@@ -62,13 +62,14 @@ fit_expression_model_with_gp <- function(
     target_effects$target_delta, na.rm = TRUE
   )
 
+  # Calculate mean deltas for all genes, but only store those for pgenes
   ko_deltas_all_list <- lapply(training_kos, function(k) {
     colMeans(Y[group == k, , drop = FALSE]) - wt_means_all
   })
   ko_deltas_all_matrix <- do.call(rbind, ko_deltas_all_list)
-  portability_models[['fallback_all_gene_deltas']] <- colMeans(
-    ko_deltas_all_matrix, na.rm = TRUE
-  )
+  mean_all_gene_deltas <- colMeans(ko_deltas_all_matrix, na.rm = TRUE)
+
+  portability_models[['fallback_pgenes_deltas']] <- mean_all_gene_deltas[pgenes]
 
   # Create master df starting from target KOs and left-joining source data
   all_dfs_to_join <- c(list(target_effects), source_effects)
@@ -95,7 +96,6 @@ fit_expression_model_with_gp <- function(
       )
       lm_combo <- stats::lm(formula_combo, data = df_combo)
 
-      # Check model significance
       s <- summary(lm_combo)
       fstat <- s$fstatistic
       p_value <- stats::pf(fstat[1], fstat[2], fstat[3], lower.tail = FALSE)
@@ -111,7 +111,6 @@ fit_expression_model_with_gp <- function(
         is_significant = is_significant
       )
     } else {
-      # Also store a non-significant entry so the predict function doesn't fail
       portability_models[[model_name]] <- list(
         model = NULL,
         scale_factor = 1.0,
@@ -138,15 +137,16 @@ fit_expression_model_with_gp <- function(
 #' @param ko_expressions A named vector of expression levels for the test KOs.
 #' @param wt_expressions A named vector of WT expressions for the target dataset.
 #' @param pname The name of the hub node.
+#' @param pgenes A character vector of the signature genes.
 #' @param graph An igraph object, required if `ancestors_only = TRUE`.
 #' @param scale_pname Logical. If TRUE, apply the stored variance calibration.
 #' @param ancestors_only Logical. If TRUE, only apply portability models to KOs that are ancestors of `pname` in the `graph`.
-#' @param fallback_strategy Character. Action if no source data is found or KO is not an ancestor: "pname_mean_propagate", "pname_zero_propagate", or "all_genes_mean".
+#' @param fallback_strategy Character. Action if no source data is found or KO is not an ancestor: "pname_mean_propagate", "pname_zero_propagate", or "pgenes_mean_propagate".
 #' @return A numeric matrix of predicted delta values for the test KOs.
 #' @export
 predict_standard_effect_with_gp <- function(
     B, portability_models, source_effects,
-    ko_expressions, wt_expressions, pname,
+    ko_expressions, wt_expressions, pname, pgenes,
     graph = NULL,
     scale_pname = TRUE,
     ancestors_only = FALSE,
@@ -161,7 +161,7 @@ predict_standard_effect_with_gp <- function(
   # --- 1. Validate Arguments and Get Fallback Values ---
   fallback_strategy <- match.arg(
     fallback_strategy,
-    c("pname_mean_propagate", "pname_zero_propagate", "all_genes_mean")
+    c("pname_mean_propagate", "pname_zero_propagate", "pgenes_mean_propagate")
   )
 
   fallback_pname_delta <- portability_models[['fallback_pname_delta']]
@@ -169,9 +169,14 @@ predict_standard_effect_with_gp <- function(
     stop("Corrupted 'portability_models': 'fallback_pname_delta' is missing.")
   }
 
-  fallback_all_gene_deltas <- portability_models[['fallback_all_gene_deltas']]
-  if (fallback_strategy == "all_genes_mean" && is.null(fallback_all_gene_deltas)) {
-    stop("Corrupted 'portability_models': 'fallback_all_gene_deltas' is missing.")
+  fallback_pgenes_deltas <- portability_models[['fallback_pgenes_deltas']]
+  if (fallback_strategy == "pgenes_mean_propagate") {
+    if (is.null(fallback_pgenes_deltas)) {
+      stop("Corrupted 'portability_models': 'fallback_pgenes_deltas' is missing.")
+    }
+    if (!setequal(pgenes, names(fallback_pgenes_deltas))) {
+      stop("'pgenes' do not match the keys in 'fallback_pgenes_deltas'.")
+    }
   }
 
   # --- 2. Pre-calculate Ancestor Status (More Efficient) ---
@@ -180,9 +185,7 @@ predict_standard_effect_with_gp <- function(
     if (!inherits(graph, "igraph")) {
       stop("'graph' must be a valid igraph object when 'ancestors_only = TRUE'.")
     }
-    # Calculate distances from all ko_genes to pname. Inf means no path.
     dists <- igraph::distances(graph, v = ko_genes, to = pname, mode = "out")
-    # is.finite is TRUE if a path exists (distance is not Inf)
     ancestor_map <- setNames(is.finite(dists[, 1]), ko_genes)
   }
 
@@ -209,15 +212,12 @@ predict_standard_effect_with_gp <- function(
       if (length(available_sources) == 0) {
         use_fallback <- TRUE
       } else {
-        # Found sources, build model name and check its significance
         model_name <- paste(sort(available_sources), collapse = "_and_")
         model_entry <- portability_models[[model_name]]
 
         if (is.null(model_entry) || !isTRUE(model_entry$is_significant)) {
-          # Model doesn't exist or was not significant, so use fallback
           use_fallback <- TRUE
         } else {
-          # Model exists and is significant, so predict
           ko_data_list <- lapply(available_sources, function(s_name) {
             source_effects[[s_name]] %>% dplyr::filter(ko == !!ko_gene)
           })
@@ -234,17 +234,11 @@ predict_standard_effect_with_gp <- function(
       }
     }
 
-    # Apply fallback logic if required
+    # Apply fallback logic to set the initial predicted_pname_delta
     if (use_fallback) {
-      if (fallback_strategy == "all_genes_mean") {
-        # Option 1: Return average training effect, skip propagation
-        stopifnot(setequal(names(fallback_all_gene_deltas), genes))
-        return(fallback_all_gene_deltas[genes])
-      } else if (fallback_strategy == "pname_mean_propagate") {
-        # Option 2: Use mean pname delta and propagate
+      if (fallback_strategy == "pname_mean_propagate" || fallback_strategy == "pgenes_mean_propagate") {
         predicted_pname_delta <- fallback_pname_delta
       } else { # "pname_zero_propagate"
-        # Option 3: Use zero pname delta and propagate
         predicted_pname_delta <- 0.0
       }
     }
@@ -253,6 +247,15 @@ predict_standard_effect_with_gp <- function(
     known_deltas <- c()
     known_deltas[ko_gene] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
     known_deltas[pname] <- predicted_pname_delta
+
+    # If using pgenes_mean_propagate, set those values *before* imputation
+    if (use_fallback && fallback_strategy == "pgenes_mean_propagate") {
+      # Set pgenes, but NEVER overwrite the ko_gene's own delta
+      pgenes_to_set <- setdiff(pgenes, ko_gene)
+      if (length(pgenes_to_set) > 0) {
+        known_deltas[pgenes_to_set] <- fallback_pgenes_deltas[pgenes_to_set]
+      }
+    }
 
     imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
     if (length(imputed_deltas) > 0) known_deltas[names(imputed_deltas)] <- imputed_deltas

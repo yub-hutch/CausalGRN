@@ -11,6 +11,7 @@ predict_standard_effect_with_gp(
   ko_expressions,
   wt_expressions,
   pname,
+  pgenes,
   graph = NULL,
   scale_pname = TRUE,
   ancestors_only = FALSE,
@@ -30,13 +31,15 @@ predict_standard_effect_with_gp(
 
 \item{pname}{The name of the hub node.}
 
+\item{pgenes}{A character vector of the signature genes.}
+
 \item{graph}{An igraph object, required if `ancestors_only = TRUE`.}
 
 \item{scale_pname}{Logical. If TRUE, apply the stored variance calibration.}
 
 \item{ancestors_only}{Logical. If TRUE, only apply portability models to KOs that are ancestors of `pname` in the `graph`.}
 
-\item{fallback_strategy}{Character. Action if no source data is found or KO is not an ancestor: "pname_mean_propagate", "pname_zero_propagate", or "all_genes_mean".}
+\item{fallback_strategy}{Character. Action if no source data is found or KO is not an ancestor: "pname_mean_propagate", "pname_zero_propagate", or "pgenes_mean_propagate".}
 }
 \value{
 A numeric matrix of predicted delta values for the test KOs.
