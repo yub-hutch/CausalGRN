@@ -25,7 +25,7 @@ fit_expression_model_with_gp(
 
 \item{source_effects}{A named list of data frames with KO effects from source datasets.}
 
-\item{pname}{The name of the hub node (e.g., "PC1").}
+\item{pname}{The name of the hub node (e..g., "PC1").}
 
 \item{pgenes}{A character vector of the signature genes.}
 
@@ -36,7 +36,7 @@ fit_expression_model_with_gp(
 \item{alpha}{Significance level threshold (F-statistic p-value) to determine if a portability model is considered valid.}
 }
 \value{
-A list containing `B_matrix` and `portability_models`. `portability_models` contains a model for each combination of sources, plus fallback values (`fallback_pname_delta`, `fallback_pgenes_deltas`).
+A list containing `B_matrix` and `portability_models`. `portability_models` contains a model for each combination of sources, plus fallback values.
 }
 \description{
 Trains a GRN model and a set of hierarchically inclusive portability models

@@ -39,7 +39,7 @@ predict_standard_effect_with_gp(
 
 \item{ancestors_only}{Logical. If TRUE, only apply portability models to KOs that are ancestors of `pname` in the `graph`.}
 
-\item{fallback_strategy}{Character. Action if no source data is found or KO is not an ancestor: "pname_mean_propagate", "pname_zero_propagate", or "pgenes_mean_propagate".}
+\item{fallback_strategy}{Character. Action if no source data is found or KO is not an ancestor. One of: "pname_mean_propagate", "pname_zero_propagate", "pgenes_mean_propagate", or "all_genes_mean".}
 }
 \value{
 A numeric matrix of predicted delta values for the test KOs.
