@@ -11,7 +11,10 @@ infer_causalgrn_with_gp(
   pname,
   pgenes,
   allow_pgene_out,
-  conservative = TRUE
+  conservative = TRUE,
+  max_order = 1,
+  max_dist = Inf,
+  evidence = 1
 )
 }
 \arguments{
@@ -28,6 +31,12 @@ infer_causalgrn_with_gp(
 \item{allow_pgene_out}{Allow program genes as parents of non-program genes or not.}
 
 \item{conservative}{Logical indicating whether to make conservative inference (Default is \code{TRUE}).}
+
+\item{max_order}{Integer representing the maximum order for DE descendant inference. Can be 1 or 2. Default is 1.}
+
+\item{max_dist}{Integer representing the maximum distance allowed for a perturbed gene to cause DE on another gene. Ignore for `max_order = 1`. Default is Inf.}
+
+\item{evidence}{Integer representing number of evidences needed for second-order orientation. Ignore for `max_order = 1`. Default is 1.}
 }
 \value{
 igraph object.

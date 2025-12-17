@@ -1,6 +1,6 @@
 <table>
   <tr>
-    <td><img src="man/figures/Logo.png" alt="CausalGRN Logo" width="160"/></td>
+    <td><img src="man/figures/Logo.png" alt="CausalGRN Logo" width="300"/></td>
     <td><h1>CausalGRN: Deciphering Causal Gene Regulatory Networks from Single-Cell CRISPR Screens</h1></td>
   </tr>
 </table>
