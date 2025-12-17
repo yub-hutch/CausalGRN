@@ -1,15 +1,24 @@
-Package: CausalGRNdev
+Package: CausalGRN
 Type: Package
-Title: Deciphering Causal Gene Regulatory Network from Single-Cell Perturbation data
+Title: CausalGRN: Deciphering Causal Gene Regulatory Networks from Single-Cell CRISPR Screens
 Version: 0.1.0
 Authors@R: c(
     person(
       "Bo", "Yu",
       email = "byu2@fredhutch.org",
       role = c("aut", "cre")
+    ),
+    person(
+      "Wei", "Sun",
+      email = "wsun@fredhutch.org",
+      role = c("aut", "cph")
     )
   )
-Description: The packages infers causal GRN in wild-type cells leveraging scRNA-seq data in wild-type and perturbed cells.
+Description: A scalable computational framework to infer causal Gene Regulatory
+    Networks (GRNs) from single-cell CRISPR screens. CausalGRN mitigates
+    spurious correlations in sparse scRNA-seq data and orients the network
+    using perturbation outcomes to predict cellular responses to unseen
+    perturbations.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -25,3 +34,5 @@ Imports:
     pbmcapply,
     pcalg,
     ppcor
+VignetteBuilder: knitr
+Config/testthat/edition: 3
