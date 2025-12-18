@@ -6,7 +6,6 @@
 </table>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![R-CMD-check](https://github.com/yub-hutch/CausalGRN/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/yub-hutch/CausalGRN/actions/workflows/R-CMD-check.yaml)
 
 **CausalGRN** is a scalable computational framework that infers causal gene regulatory networks (GRNs) and predicts cellular responses to unseen perturbations. It is designed to translate the complex outputs from large-scale single-cell CRISPR screens with scRNA-seq readouts into reliable causal insights.
 
@@ -14,7 +13,7 @@
 
 Large-scale single-cell CRISPR screens provide critical data to map causal GRNs. However, analyzing this data to extract reliable causal relationships is a major challenge. CausalGRN addresses this by:
 
-1.  **Mitigating Spurious Correlations**: It employs a novel adaptive thresholding correction to reduce the impact of pervasive spurious partial correlations found in sparse scRNA-seq data, enabling a more robust inference of the network's undirected skeleton.
+1.  **Mitigating Spurious Partial Correlations**: It employs a novel adaptive thresholding correction to reduce the impact of pervasive spurious partial correlations found in sparse scRNA-seq data, enabling a more robust inference of the network's undirected skeleton.
 2.  **Orienting the Network**: It orients the graph using observed perturbation outcomes from CRISPR screens.
 3.  **Predicting Perturbation Effects**: The resulting directed GRN can be used to predict the downstream effects of novel, unseen perturbations via network propagation.
 
