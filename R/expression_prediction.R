@@ -254,6 +254,91 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
 #' @param max_dist Maximum distance for effect propagation. Default is `Inf`.
 #'   Distances are calculated on the functional graph derived from B.
 #' @param space The modeling space. delta: propagate in expression change space. absolute: propagate in expression space.
+#' @examples
+#' # --- 0. SETUP: Load Libraries & Define Ground Truth ---
+#' library(dplyr)
+#' library(igraph)
+#' library(CausalGRN)
+#'
+#' # Define all simulation parameters upfront
+#' a <- b <- 1
+#' sd <- 2
+#' s <- -4
+#' nwt <- 1e4 # Smaller sample size for example
+#' npt <- 1e3 # Smaller sample size for example
+#' ko_efficacy <- 0.9 # 90% knockdown efficiency
+#'
+#' # Define the ground truth graph for this simulation
+#' ground_truth <- igraph::make_graph(~ A -+ B, B -+ C)
+#' E(ground_truth)$weight <- c(a, b)
+#'
+#' # --- 1. DATA SIMULATION: Create the Toy Example ---
+#' set.seed(123)
+#'
+#' # Generate Wild-Type (WT) Data
+#' x_latent_wt <- rnorm(nwt, 0, sd)
+#' y_latent_wt <- rnorm(nwt, a * x_latent_wt + s, sd)
+#' z_latent_wt <- rnorm(nwt, b * (y_latent_wt - s), sd)
+#' wt_counts <- cbind(
+#'   A = rpois(nwt, exp(x_latent_wt)),
+#'   B = rpois(nwt, exp(y_latent_wt)),
+#'   C = rpois(nwt, exp(z_latent_wt))
+#' )
+#'
+#' # Generate Perturb-A Data
+#' x_latent_koA <- rnorm(npt, 0, sd) + log(1 - ko_efficacy)
+#' y_latent_koA <- rnorm(npt, a * x_latent_koA + s, sd)
+#' z_latent_koA <- rnorm(npt, b * (y_latent_koA - s), sd)
+#' koA_counts <- cbind(
+#'   A = rpois(npt, exp(x_latent_koA)),
+#'   B = rpois(npt, exp(y_latent_koA)),
+#'   C = rpois(npt, exp(z_latent_koA))
+#' )
+#'
+#' # Generate Perturb-B Data
+#' x_latent_koB <- rnorm(npt, 0, sd)
+#' y_latent_koB <- rnorm(npt, a * x_latent_koB + s, sd) + log(1 - ko_efficacy)
+#' z_latent_koB <- rnorm(npt, b * (y_latent_koB - s), sd)
+#' koB_counts <- cbind(
+#'   A = rpois(npt, exp(x_latent_koB)),
+#'   B = rpois(npt, exp(y_latent_koB)),
+#'   C = rpois(npt, exp(z_latent_koB))
+#' )
+#'
+#' # Generate Perturb-C Data
+#' x_latent_koC <- rnorm(npt, 0, sd)
+#' y_latent_koC <- rnorm(npt, a * x_latent_koC + s, sd)
+#' z_latent_koC <- rnorm(npt, b * (y_latent_koC - s), sd) + log(1 - ko_efficacy)
+#' koC_counts <- cbind(
+#'   A = rpois(npt, exp(x_latent_koC)),
+#'   B = rpois(npt, exp(y_latent_koC)),
+#'   C = rpois(npt, exp(z_latent_koC))
+#' )
+#'
+#' # --- 2. PREPARE INPUTS ---
+#' count <- rbind(wt_counts, koA_counts, koB_counts, koC_counts)
+#' group <- factor(c(rep('WT', nwt), rep('A', npt), rep('B', npt), rep('C', npt)))
+#' Y <- scale(log1p(count), center = TRUE, scale = TRUE)
+#' colnames(count) <- colnames(Y) <- c('A', 'B', 'C')
+#'
+#' # --- 3. Fit model (using WT and KO A data) ---
+#' train_idx <- which(group %in% c('WT', 'A'))
+#' B <- fit_expression_model(
+#'   Y[train_idx, ],
+#'   group[train_idx],
+#'   graph = ground_truth,
+#'   ncores = 1,
+#'   method = 'lm'
+#' )
+#'
+#' # --- 4. Predict effects for B and C knockout ---
+#' wt_expressions <- colMeans(Y[group == 'WT', ])
+#' ko_expressions <- c(
+#'   'B' = mean(Y[group == 'B', 'B']),
+#'   'C' = mean(Y[group == 'C', 'C'])
+#' )
+#' pred_effects <- predict_standard_effect(B, ko_expressions, wt_expressions)
+#' print(pred_effects)
 #' @return A numeric matrix of predicted delta values (KOs x genes).
 #' @export
 predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist = Inf, space = c("delta", "absolute")) {
