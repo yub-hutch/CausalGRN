@@ -264,13 +264,9 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
 #' a <- b <- 1
 #' sd <- 2
 #' s <- -4
-#' nwt <- 1e4 # Smaller sample size for example
-#' npt <- 1e3 # Smaller sample size for example
+#' nwt <- 1e5
+#' npt <- 1e4
 #' ko_efficacy <- 0.9 # 90% knockdown efficiency
-#'
-#' # Define the ground truth graph for this simulation
-#' ground_truth <- igraph::make_graph(~ A -+ B, B -+ C)
-#' E(ground_truth)$weight <- c(a, b)
 #'
 #' # --- 1. DATA SIMULATION: Create the Toy Example ---
 #' set.seed(123)
@@ -317,16 +313,25 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
 #'
 #' # --- 2. PREPARE INPUTS ---
 #' count <- rbind(wt_counts, koA_counts, koB_counts, koC_counts)
-#' group <- factor(c(rep('WT', nwt), rep('A', npt), rep('B', npt), rep('C', npt)))
+#' group <- c(rep('WT', nwt), rep('A', npt), rep('B', npt), rep('C', npt))
 #' Y <- scale(log1p(count), center = TRUE, scale = TRUE)
 #' colnames(count) <- colnames(Y) <- c('A', 'B', 'C')
 #'
 #' # --- 3. Fit model (using WT and KO A data) ---
 #' train_idx <- which(group %in% c('WT', 'A'))
+#' skel <- infer_skeleton(
+#'   count[train_idx, ],
+#'   Y[train_idx, ],
+#'   alpha = 0.05,
+#'   min_abspcor = 0,
+#'   ncores = 1
+#' )
+#' stat <- calc_perturbation_effect(Y[train_idx, ], group[train_idx], ncores = 1)
+#' causal_graph <- infer_causalgrn(skel$graph, stat, alpha = 0.05)
 #' B <- fit_expression_model(
 #'   Y[train_idx, ],
 #'   group[train_idx],
-#'   graph = ground_truth,
+#'   graph = causal_graph,
 #'   ncores = 1,
 #'   method = 'lm'
 #' )
