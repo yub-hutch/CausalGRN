@@ -256,7 +256,7 @@ ggplot2::ggplot(plot_df, ggplot2::aes(x = Gene, y = Perturbation, fill = Effect)
 The plot below shows the results of running the different GRN inference methods on the simulated data. The ground truth is a simple chain `A -> B -> C`. CausalGRN correctly identifies the causal structure, while other methods infer incorrect edges or directions.
 
 <p align="center">
-  <img src="man/figures/Illustration.png" alt="CausalGRN Illustration" width="500"/>
+  <img src="man/figures/illustration.png" alt="CausalGRN Illustration" width="500"/>
 </p>
 
 The plot below is the output of the prediction example. It shows the predicted effects of knocking down genes 'B' and 'C'. As expected from the ground truth graph `A -> B -> C`, knocking down 'B' affects both 'B' and 'C', while knocking down 'C' only affects 'C'.
