@@ -33,6 +33,5 @@ Imports:
     parallel,
     pbmcapply,
     pcalg,
-    ppcor
-VignetteBuilder: knitr
-Config/testthat/edition: 3
+    ppcor,
+    graph

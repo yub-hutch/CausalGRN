@@ -36,36 +36,67 @@ igraph object.
 Infers causal GRN by directing edges based on differential expression caused by perturbations.
 }
 \examples{
-# No hub genes
-# x -> y -> z
+# --- 0. SETUP: Load Libraries & Define Ground Truth ---
+library(dplyr)
+library(igraph)
+library(CausalGRN)
+
+# Define all simulation parameters upfront
+a <- b <- 1
+sd <- 2
+s <- -4
+nwt <- 1e5 # User-specified WT sample size
+npt <- 1e4 # User-specified perturbed sample size
+ko_efficacy <- 0.9 # 90\% knockdown efficiency
+
+# Define the ground truth graph for this simulation
+ground_truth <- igraph::make_graph(~ A -+ B, B -+ C)
+E(ground_truth)$weight <- c(a, b)
+
+# --- 1. DATA SIMULATION: Create the Toy Example ---
 set.seed(123)
-n <- 1e3
-x0 <- rnorm(n)
-x1 <- rnorm(n, mean = -1)
-x <- c(x0, x1)
-group <- c(rep('WT', n), rep('x', n))
-y <- rnorm(2 * n, mean = x, sd = 1)
-z <- rnorm(2 * n, mean = y, sd = 1)
-data <- cbind(x = x, y = y, z = z)
-skel <- infer_skeleton_from_perturbed(
-  Y = data,
-  group = group,
-  alpha = 1e-3,
-  ncores = 2,
-  max_order = 1
+
+# Generate Wild-Type (WT) Data
+x_latent_wt <- rnorm(nwt, 0, sd)
+y_latent_wt <- rnorm(nwt, a * x_latent_wt + s, sd)
+z_latent_wt <- rnorm(nwt, b * (y_latent_wt - s), sd)
+wt_counts <- cbind(
+  X = rpois(nwt, exp(x_latent_wt)),
+  Y = rpois(nwt, exp(y_latent_wt)),
+  Z = rpois(nwt, exp(z_latent_wt))
 )
-stat <- calc_perturbation_effect(
-  Y = data,
-  group = group,
-  ncores = 2
+colMeans(wt_counts == 0)
+
+# Generate Perturb-X Data (independent population)
+x_latent_template_koX <- rnorm(npt, 0, sd)
+x_latent_final_koX <- x_latent_template_koX + log(1 - ko_efficacy)
+y_latent_final_koX <- rnorm(npt, a * x_latent_final_koX + s, sd)
+z_latent_final_koX <- rnorm(npt, b * (y_latent_final_koX - s), sd)
+koX_counts <- cbind(
+  X = rpois(npt, exp(x_latent_final_koX)),
+  Y = rpois(npt, exp(y_latent_final_koX)),
+  Z = rpois(npt, exp(z_latent_final_koX))
 )
-cgrn <- infer_causalgrn(
-  graph = skel$graph,
-  stat = stat,
-  alpha = 0.05,
-  max_order = 2
+colMeans(koX_counts == 0)
+
+# --- 2. PREPARE INPUTS for GRN Methods ---
+count <- rbind(wt_counts, koX_counts)
+group <- factor(c(rep('WT', nwt), rep('A', npt)))
+Y <- scale(log1p(count), center = TRUE, scale = TRUE)
+colnames(count) <- colnames(Y) <- c('A', 'B', 'C')
+wt <- Y[group == 'WT', ]
+pts <- list(
+  A = Y[group == 'A', ]
 )
-plot(cgrn)
-print(igraph::as_data_frame(cgrn))
+
+# --- 3. RUN GRN INFERENCE METHODS ---
+cat("Running GRN inference methods...\n")
+
+# Your method: CausalGRN (uses perturbation data)
+skel <- infer_skeleton(count, Y, alpha = 0.05, min_abspcor = 0, ncores = 1)
+stat <- calc_perturbation_effect(Y, group, ncores = 1)
+graph_cgrn <- infer_causalgrn(skel$graph, stat, alpha = 0.05, max_order = 2)
+
+plot(graph_cgrn)
 
 }

@@ -22,9 +22,6 @@ parallel_cor <- function(mat, ncores) {
 #'
 #' @param G Adjacency matrix.
 #' @return Edge index matrix.
-#' @examples
-#' G <- generate_complete_adj_matrix(genes = c('A', 'B'))
-#' get_edge_index(G = G)
 #' @export
 get_edge_index <- function(G) {
   G[lower.tri(G)] <- FALSE

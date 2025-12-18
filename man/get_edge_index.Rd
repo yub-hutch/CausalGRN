@@ -15,7 +15,3 @@ Edge index matrix.
 \description{
 Get edge index of adjacency matrix.
 }
-\examples{
-G <- generate_complete_adj_matrix(genes = c('A', 'B'))
-get_edge_index(G = G)
-}
