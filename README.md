@@ -224,13 +224,64 @@ The plot below is the output of this prediction example. It shows the predicted 
   <img src="man/figures/Predicted_effect.png" alt="Predicted Effect Plot" width="400"/>
 </p>
 
+## GRN-scPerturbSim: Simulation Framework
+
+`GRN-scPerturbSim` is a simulation framework to generate realistic single-cell CRISPR screen data, provided as part of the `CausalGRN` R package. It uses a real single-cell perturbation dataset as a reference to generate a simulated count matrix guided by a synthetic Gene Regulatory Network (GRN). While developed for testing `CausalGRN`, it is an independent tool that can be used to benchmark any GRN inference method.
+
+Here is an example of how to use the simulation function:
+
+```r
+# --- GRN-scPerturbSim Simulation Example ---
+
+# The simulation function `simulate_grn_guided_expression` requires a real single-cell
+# expression dataset (Y) and cell group labels (group) to learn data properties from.
+# For this example, we will first generate a toy dataset to serve as this input.
+# In a real use case, you would load your own experimental data here.
+
+set.seed(42)
+n_genes <- 10
+n_cells_per_group <- 50
+genes <- paste0("Gene", 1:n_genes)
+kos <- c("Gene1", "Gene2")
+groups <- c("WT", kos)
+n_groups <- length(groups)
+
+# 1. Create a toy expression matrix `Y` and `group` vector.
+# In your work, replace this with your actual scRNA-seq count matrix and cell labels.
+Y_real_data <- matrix(
+  rpois(n_groups * n_cells_per_group * n_genes, lambda = 10),
+  nrow = n_groups * n_cells_per_group,
+  ncol = n_genes
+)
+colnames(Y_real_data) <- genes
+
+group_real_data <- rep(groups, each = n_cells_per_group)
+cell_names <- paste0("Cell", 1:length(group_real_data))
+rownames(Y_real_data) <- cell_names
+names(group_real_data) <- cell_names
+
+# 2. Run the GRN-guided simulation using the toy data as input.
+sim_data <- simulate_grn_guided_expression(d = 2, Y = Y_real_data, group = group_real_data)
+
+# The output contains the simulated graph, coefficients, and new expression data.
+cat("Simulated DAG:\n")
+print(sim_data$dag)
+
+# You can plot the simulated graph.
+# plot(sim_data$dag)
+
+# The new simulated expression matrix is in sim_data$Y.
+# The new group labels are in sim_data$group.
+```
+
+This will generate a new dataset (`sim_data$Y` and `sim_data$group`) based on the properties of the input `Y_real_data` matrix, following the causal structure of the randomly generated `sim_data$dag`.
+
 ## Citation
 
 If you use CausalGRN in your research, please cite our paper:
 
-> **CausalGRN: deciphering causal gene regulatory networks from single-cell CRISPR screens**
->
-> (Further citation details will be added upon publication)
+> Bo Yu, Dingyu Liu, Guanghao Qi, Danwei Huangfu, Li Hsu, Ali Shojaie, Wei Sun. [**CausalGRN: deciphering causal gene regulatory networks from single-cell CRISPR screens**](https://www.biorxiv.org/content/10.64898/2025.12.30.692369v1). bioRxiv 2025.12.30.692369; doi: https://doi.org/10.64898/2025.12.30.692369
+
 
 ## License
 
