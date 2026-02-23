@@ -1,6 +1,6 @@
 Package: CausalGRN
 Type: Package
-Title: CausalGRN: Deciphering Causal Gene Regulatory Networks from Single-Cell CRISPR Screens
+Title: CausalGRN maps causal gene regulatory networks and predicts unseen perturbation effects from single-cell CRISPR screens
 Version: 0.1.0
 Authors@R: c(
     person(
