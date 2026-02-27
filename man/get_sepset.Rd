@@ -7,7 +7,7 @@
 get_sepset(skel, g1, g2)
 }
 \arguments{
-\item{skel}{See \code{\link{infer_skeleton_from_wildtype}} and \code{\link{infer_skeleton_from_perturbed}}.}
+\item{skel}{See \code{\link{infer_skeleton}} and \code{\link{infer_skeleton_with_gp}}.}
 
 \item{g1}{Gene name.}
 

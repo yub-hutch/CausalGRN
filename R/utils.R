@@ -89,7 +89,7 @@ adj2igraph <- function(G, pMax, chisqMin, absPcorMin, Threshold, sampleSize, max
 #'
 #' Extract separation set of two genes from graph skeleton
 #'
-#' @param skel See \code{\link{infer_skeleton_from_wildtype}} and \code{\link{infer_skeleton_from_perturbed}}.
+#' @param skel See \code{\link{infer_skeleton}} and \code{\link{infer_skeleton_with_gp}}.
 #' @param g1 Gene name.
 #' @param g2 Gene name.
 #' @return Seperation set.

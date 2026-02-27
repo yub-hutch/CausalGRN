@@ -228,7 +228,7 @@ predict_standard_effect_with_gp <- function(
           use_fallback <- TRUE
         } else {
           ko_data_list <- lapply(available_sources, function(s_name) {
-            source_effects[[s_name]] %>% dplyr::filter(ko == !!ko_gene)
+            dplyr::filter(source_effects[[s_name]], ko == ko_gene)
           })
           ko_data <- Reduce(function(x, y) dplyr::full_join(x, y, by = "ko"), ko_data_list)
 

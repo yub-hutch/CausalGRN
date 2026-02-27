@@ -16,9 +16,9 @@
 #'   \item \code{t_pv}: T-test P-value.
 #'   \item \code{cor_pearson}: Pearson correlation in wild-type cells.
 #'   \item \code{cor_spearman}: Spearman correlation in all cells.
-#'   \item \code{adj_wilcox_pv}: BH-adjusted Wilcoxon rank sum test P-value.
-#'   \item \code{adj_t_pv}: BH-adjusted T-test P-value.
-#'   \item \code{adj_pv}: The larger of `adj_wilcox_pv` and `adj_wilcox_pv`.
+#'   \item \code{wilcox_adj_pv}: BH-adjusted Wilcoxon rank sum test P-value.
+#'   \item \code{t_adj_pv}: BH-adjusted T-test P-value.
+#'   \item \code{adj_pv}: The larger of \code{wilcox_adj_pv} and \code{t_adj_pv}.
 #' }
 #'
 #' @examples
