@@ -101,6 +101,9 @@ run_gies <- function(wt, pts, verbose = FALSE) {
 #' @return igraph object.
 #' @export
 run_genie3 <- function(wt, ncores, verbose = FALSE) {
+  if (!requireNamespace("GENIE3", quietly = TRUE)) {
+    stop("Package 'GENIE3' must be installed to use run_genie3().", call. = FALSE)
+  }
   w <- GENIE3::GENIE3(t(wt), nCores = ncores, verbose = verbose)
   w <- w[colnames(wt), colnames(wt)]
   graph <- igraph::graph_from_adjacency_matrix(abs(w), mode = 'directed', weighted = TRUE, diag = FALSE)
@@ -157,6 +160,9 @@ format_grnboost2 <- function(file, genes) {
 #' @return igraph object.
 #' @export
 run_lasso <- function(Y, ncores, nfold = 5) {
+  if (!requireNamespace("glmnet", quietly = TRUE)) {
+    stop("Package 'glmnet' must be installed to use run_lasso().", call. = FALSE)
+  }
   stopifnot(ncol(Y) > 2)
   genes <- colnames(Y)
   coef_list <- .causalgrn_parallel_lapply(

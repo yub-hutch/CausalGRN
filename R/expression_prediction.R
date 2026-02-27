@@ -57,6 +57,9 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
   p <- ncol(Y)
   genes <- colnames(Y)
   method <- match.arg(method)
+  if (method != "lm" && !requireNamespace("glmnet", quietly = TRUE)) {
+    stop("Package 'glmnet' must be installed when method is 'lasso' or 'ridge'.", call. = FALSE)
+  }
 
   # --- UPDATED: More robust parameter checking ---
   if (inherits(graph, "igraph")) {

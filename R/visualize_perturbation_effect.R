@@ -22,10 +22,22 @@
 #'   group = group,
 #'   ncores = 2
 #' )
-#' plot_cohens_d_vs_cor(stat)
+#' if (requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("ggpointdensity", quietly = TRUE) &&
+#'     requireNamespace("ggpubr", quietly = TRUE)) {
+#'   plot_cohens_d_vs_cor(stat)
+#' }
 #'
 #' @export
 plot_cohens_d_vs_cor <- function(stat, cor = c('pearson', 'spearman')) {
+  if (!requireNamespace("ggplot2", quietly = TRUE) ||
+      !requireNamespace("ggpointdensity", quietly = TRUE) ||
+      !requireNamespace("ggpubr", quietly = TRUE)) {
+    stop(
+      "Packages 'ggplot2', 'ggpointdensity', and 'ggpubr' must be installed to use this plotting function.",
+      call. = FALSE
+    )
+  }
   cor <- match.arg(cor)
   if (cor == 'pearson') {
     plot_data <- stat |> dplyr::filter(ko != gene) |> dplyr::mutate(cor = cor_pearson)
@@ -52,6 +64,14 @@ plot_cohens_d_vs_cor <- function(stat, cor = c('pearson', 'spearman')) {
 #' @return ggplot object.
 #' @export
 plot_adj_pv_for_ko_pairs <- function(stat, eps = 1e-5) {
+  if (!requireNamespace("ggplot2", quietly = TRUE) ||
+      !requireNamespace("ggpointdensity", quietly = TRUE) ||
+      !requireNamespace("ggpubr", quietly = TRUE)) {
+    stop(
+      "Packages 'ggplot2', 'ggpointdensity', and 'ggpubr' must be installed to use this plotting function.",
+      call. = FALSE
+    )
+  }
   stat1 <- stat |> dplyr::filter(gene %in% ko) |> dplyr::filter(ko > gene)
   stat2 <- stat |> dplyr::filter(gene %in% ko) |> dplyr::filter(ko < gene)
   plot_data <- stat1 |>
@@ -85,6 +105,14 @@ plot_adj_pv_for_ko_pairs <- function(stat, eps = 1e-5) {
 #' @return ggplot object.
 #' @export
 plot_cd_for_ko_pairs <- function(stat) {
+  if (!requireNamespace("ggplot2", quietly = TRUE) ||
+      !requireNamespace("ggpointdensity", quietly = TRUE) ||
+      !requireNamespace("ggpubr", quietly = TRUE)) {
+    stop(
+      "Packages 'ggplot2', 'ggpointdensity', and 'ggpubr' must be installed to use this plotting function.",
+      call. = FALSE
+    )
+  }
   stat1 <- stat |> dplyr::filter(gene %in% ko) |> dplyr::filter(ko > gene)
   stat2 <- stat |> dplyr::filter(gene %in% ko) |> dplyr::filter(ko < gene)
   plot_data <- stat1 |> dplyr::inner_join(stat2, by = c(ko = "gene", gene = "ko"), suffix = c("_1", "_2"))
@@ -105,5 +133,4 @@ plot_cd_for_ko_pairs <- function(stat) {
     ggpubr::theme_pubr()
   return(p)
 }
-
 

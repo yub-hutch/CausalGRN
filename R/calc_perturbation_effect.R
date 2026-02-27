@@ -71,6 +71,12 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
     )
     stat <- do.call(rbind, stat_list)
   } else {
+    if (!requireNamespace("bigstatsr", quietly = TRUE)) {
+      stop(
+        "Package 'bigstatsr' must be installed when use_disk = TRUE (or set use_disk = FALSE).",
+        call. = FALSE
+      )
+    }
     message('Y is a big matrix. Writing to disk ...')
     Y <- bigstatsr::as_FBM(Y, backingfile = 'Y_fbm') # Row and column names erased
     for (i in seq_len(30)) gc()

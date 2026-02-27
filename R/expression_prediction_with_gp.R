@@ -89,7 +89,11 @@ fit_expression_model_with_gp <- function(
     present_sources <- combo
     model_name <- paste(sort(present_sources), collapse = "_and_")
 
-    df_combo <- tidyr::drop_na(training_df_master, dplyr::all_of(present_sources))
+    df_combo <- training_df_master[
+      stats::complete.cases(training_df_master[, present_sources, drop = FALSE]),
+      ,
+      drop = FALSE
+    ]
 
     if (nrow(df_combo) > length(present_sources)) {
       formula_combo <- stats::as.formula(

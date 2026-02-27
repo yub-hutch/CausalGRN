@@ -5,7 +5,7 @@
     median_cd <- median(curr_cds)
     return(mean(median_cd >= abs(cds)))
   })
-  return(tibble::tibble(cor_prob = cor_probs, median_cd_prob = median_cd_probs))
+  return(data.frame(cor_prob = cor_probs, median_cd_prob = median_cd_probs))
 }
 
 .calc_auc <- function(line) {

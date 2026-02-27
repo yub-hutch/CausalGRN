@@ -33,6 +33,10 @@ stat <- calc_perturbation_effect(
   group = group,
   ncores = 2
 )
-plot_cohens_d_vs_cor(stat)
+if (requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("ggpointdensity", quietly = TRUE) &&
+    requireNamespace("ggpubr", quietly = TRUE)) {
+  plot_cohens_d_vs_cor(stat)
+}
 
 }
