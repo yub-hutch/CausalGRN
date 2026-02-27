@@ -158,32 +158,41 @@ format_grnboost2 <- function(file, genes) {
 #' @export
 run_lasso <- function(Y, ncores, nfold = 5) {
   stopifnot(ncol(Y) > 2)
-  w <- pbmcapply::pbmcmapply(function(g) {
-    coef <- setNames(rep(NA, ncol(Y)), colnames(Y))
-    coef[g] <- 0
-    x <- Y[, setdiff(colnames(Y), g), drop = FALSE]
-    y <- Y[, g]
-    if (ncol(x) == 1) {
-      coef[colnames(x)] <- lm(y ~ x)$coefficients['x']
-    } else {
-      coef[colnames(x)] <- tryCatch({
-        cvfit = glmnet::cv.glmnet(
-          x = x,
-          y = y,
-          family = 'gaussian',
-          nfolds = nfold,
-          nlambda = 100,
-          alpha = 1,
-          standardize = TRUE,
-          intercept = TRUE,
-          standardize.response = FALSE,
-          parallel = FALSE
-        )
-        cvfit$glmnet.fit$beta[, cvfit$index['min', 'Lambda']]
-      }, error = function(e) rep(0, ncol(x)))
-    }
-    return(coef)
-  }, colnames(Y), SIMPLIFY = TRUE, mc.cores = ncores, mc.preschedule = FALSE)
+  genes <- colnames(Y)
+  coef_list <- .causalgrn_parallel_lapply(
+    genes,
+    function(g) {
+      coef <- setNames(rep(NA, ncol(Y)), colnames(Y))
+      coef[g] <- 0
+      x <- Y[, setdiff(colnames(Y), g), drop = FALSE]
+      y <- Y[, g]
+      if (ncol(x) == 1) {
+        coef[colnames(x)] <- lm(y ~ x)$coefficients['x']
+      } else {
+        coef[colnames(x)] <- tryCatch({
+          cvfit = glmnet::cv.glmnet(
+            x = x,
+            y = y,
+            family = 'gaussian',
+            nfolds = nfold,
+            nlambda = 100,
+            alpha = 1,
+            standardize = TRUE,
+            intercept = TRUE,
+            standardize.response = FALSE,
+            parallel = FALSE
+          )
+          cvfit$glmnet.fit$beta[, cvfit$index['min', 'Lambda']]
+        }, error = function(e) rep(0, ncol(x)))
+      }
+      coef
+    },
+    ncores = ncores,
+    preschedule = FALSE,
+    export = c("Y", "nfold")
+  )
+  w <- do.call(cbind, coef_list)
+  colnames(w) <- genes
   graph <- igraph::graph_from_adjacency_matrix(abs(w), mode = 'directed', weighted = TRUE, diag = FALSE)
   igraph::E(graph)$score <- igraph::E(graph)$weight
   graph <- igraph::delete_edge_attr(graph, name = 'weight')

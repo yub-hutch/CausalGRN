@@ -50,7 +50,7 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
   genes <- colnames(Y)
   if (!use_disk) {
     wt <- Y[group == 'WT', , drop = FALSE]
-    stat <- do.call(rbind, pbmcapply::pbmcmapply(\(ko) {
+    stat_list <- .causalgrn_parallel_lapply(kos, \(ko) {
       pt <- Y[group == ko, , drop = FALSE]
       diffs <- colMeans(pt) - colMeans(wt)
       pooled_sds <- apply(rbind(wt, pt), 2, sd)
@@ -65,7 +65,11 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
         wilcox_pv = wilcox_pvs, t_pv = t_pvs,
         cor_pearson = cors_pearson, cor_spearman = cors_spearman
       )
-    }, kos, SIMPLIFY = FALSE, mc.cores = ncores))
+    },
+    ncores = ncores,
+    export = c("Y", "group", "wt", "genes")
+    )
+    stat <- do.call(rbind, stat_list)
   } else {
     message('Y is a big matrix. Writing to disk ...')
     Y <- bigstatsr::as_FBM(Y, backingfile = 'Y_fbm') # Row and column names erased
@@ -82,7 +86,7 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
       cols <- chunks[[i]]
       sub_Y <- Y[, cols, drop = FALSE] # Read data from disk to memory
       wt <- sub_Y[group == 'WT', , drop = FALSE]
-      sub_stat <- do.call(rbind, pbmcapply::pbmclapply(kos, \(ko) {
+      sub_stat_list <- .causalgrn_parallel_lapply(kos, \(ko) {
         ko_expr_wt <- ko_expr_wt_list[[ko]]
         pt <- sub_Y[group == ko, , drop = FALSE]
         diffs <- colMeans(pt) - colMeans(wt)
@@ -98,7 +102,11 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
           wilcox_pv = wilcox_pvs, t_pv = t_pvs,
           cor_pearson = cors_pearson, cor_spearman = cors_spearman
         )
-      }, mc.cores = ncores))
+      },
+      ncores = ncores,
+      export = c("sub_Y", "wt", "group", "genes", "cols", "ko_expr_wt_list")
+      )
+      sub_stat <- do.call(rbind, sub_stat_list)
       return(sub_stat)
     }))
     unlink('Y_fbm.bk')

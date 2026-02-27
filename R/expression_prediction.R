@@ -75,7 +75,7 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
   }
 
   # --- 2. Fit Models in Parallel ---
-  model_list <- pbmcapply::pbmclapply(genes, function(gene) {
+  model_list <- .causalgrn_parallel_lapply(genes, function(gene) {
     # Initialize the full coefficient vector for this target gene
     coef_vector <- setNames(rep(0, p + 1), c('Intercept', genes))
 
@@ -116,7 +116,10 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
     }
 
     return(coef_vector)
-  }, mc.cores = ncores)
+  },
+  ncores = ncores,
+  export = c("Y", "group", "graph", "p", "genes", "method")
+  )
 
   # --- 3. Assemble and Return the Final B Matrix ---
   B <- do.call(cbind, model_list)

@@ -49,7 +49,7 @@ calc_auc <- function(stat, thr, ncores = 1) {
   stopifnot(thr >= 0 & thr < 1)
   kos <- unique(stat$ko)
   cor_probs <- seq(thr, 1, by = 0.01)
-  auc <- do.call(rbind, pbmcapply::pbmclapply(kos, function(ko) {
+  auc_list <- .causalgrn_parallel_lapply(kos, function(ko) {
     cds <- stat$cd[(stat$ko == ko) & (stat$gene != ko)]
     cors_pearson <- stat$cor_pearson[(stat$ko == ko) & (stat$gene != ko)]
     cors_spearman <- stat$cor_spearman[(stat$ko == ko) & (stat$gene != ko)]
@@ -58,8 +58,11 @@ calc_auc <- function(stat, thr, ncores = 1) {
     auc_pearson <- .calc_auc(line_pearson) / (1 - thr)
     auc_spearman <- .calc_auc(line_spearman) / (1 - thr)
     c(pearson = auc_pearson, spearman = auc_spearman)
-  }, mc.cores = ncores))
+  },
+  ncores = ncores,
+  export = c("stat", "thr", "cor_probs")
+  )
+  auc <- do.call(rbind, auc_list)
   rownames(auc) <- kos
   return(auc)
 }
-

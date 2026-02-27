@@ -11,7 +11,12 @@ parallel_cor <- function(mat, ncores) {
     return(cor(mat))
   }
   split_cols <- split(x = seq_len(ncol(mat)), f = cut(seq_len(ncol(mat)), ncores, labels = FALSE))
-  cors <- pbmcapply::pbmclapply(split_cols, function(cols) cor(mat[, cols], mat), mc.cores = ncores)
+  cors <- .causalgrn_parallel_lapply(
+    split_cols,
+    function(cols) cor(mat[, cols], mat),
+    ncores = ncores,
+    export = c("mat")
+  )
   return(do.call(rbind, cors))
 }
 

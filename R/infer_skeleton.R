@@ -39,7 +39,9 @@ perform_ci_test <- function(
 ) {
   edge_index <- get_edge_index(G)
   message('Performing CI test ...')
-  res <- pbmcapply::pbmcmapply(function(i, j) {
+  res <- .causalgrn_parallel_lapply(seq_len(nrow(edge_index)), function(pos) {
+    i <- edge_index[pos, 1]
+    j <- edge_index[pos, 2]
     if (order == 0) {
       A <- integer(0)
     } else {
@@ -89,7 +91,10 @@ perform_ci_test <- function(
         ))
       }
     }
-  }, i = edge_index[, 1], j = edge_index[, 2], SIMPLIFY = F, mc.cores = ncores)
+  },
+  ncores = ncores,
+  export = c("edge_index", "G", "order", "count", "Y", "max_thr", "min_n1", "min_n2", "alpha", "min_abspcor")
+  )
   message('Updating graph ...')
   needs_update <- !vapply(res, `[[`, logical(1), "order_reached")
   if (any(needs_update)) {
