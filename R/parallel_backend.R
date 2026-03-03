@@ -34,7 +34,7 @@
   }
 
   cl <- parallel::makeCluster(ncores)
-  on.exit(parallel::stopCluster(cl), add = TRUE)
+  on.exit(try(parallel::stopCluster(cl), silent = TRUE), add = TRUE)
 
   parallel::clusterEvalQ(cl, {
     if (!requireNamespace("CausalGRN", quietly = TRUE)) {
@@ -47,10 +47,14 @@
     parallel::clusterExport(cl, varlist = export, envir = parent.frame())
   }
 
-  if (isFALSE(preschedule)) {
-    return(parallel::parLapplyLB(cl, X, FUN, ...))
-  }
+  old_pboptions <- pbapply::pboptions(type = "timer", use_lb = isFALSE(preschedule))
+  on.exit(pbapply::pboptions(old_pboptions), add = TRUE)
 
-  parallel::parLapply(cl, X, FUN, ...)
+  tryCatch(
+    pbapply::pblapply(X, FUN, ..., cl = cl),
+    interrupt = function(e) {
+      try(parallel::stopCluster(cl), silent = TRUE)
+      stop(e)
+    }
+  )
 }
-

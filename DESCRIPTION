@@ -29,6 +29,7 @@ Imports:
     iterpc,
     matrixTests,
     parallel,
+    pbapply,
     pbmcapply,
     pcalg,
     ppcor,
