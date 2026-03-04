@@ -93,6 +93,7 @@ perform_ci_test <- function(
     }
   },
   ncores = ncores,
+  preschedule = (order == 0),
   export = c("edge_index", "G", "order", "count", "Y", "max_thr", "min_n1", "min_n2", "alpha", "min_abspcor", "calc_pcor")
   )
   message('Updating graph ...')

@@ -19,13 +19,14 @@
 ) {
   ncores <- .causalgrn_normalize_ncores(ncores)
   FUN <- match.fun(FUN)
+  nout <- max(1L, min(1000L, length(X)))
 
   if (ncores <= 1L) {
     if (!interactive()) {
       return(lapply(X, FUN, ...))
     }
 
-    old_pboptions <- pbapply::pboptions(type = "timer")
+    old_pboptions <- pbapply::pboptions(type = "timer", nout = nout)
     on.exit(pbapply::pboptions(old_pboptions), add = TRUE)
 
     return(pbapply::pblapply(X, FUN, ...))
@@ -74,7 +75,11 @@
     parallel::clusterExport(cl, varlist = export, envir = parent.frame())
   }
 
-  old_pboptions <- pbapply::pboptions(type = "timer", use_lb = isFALSE(preschedule))
+  old_pboptions <- pbapply::pboptions(
+    type = "timer",
+    use_lb = isFALSE(preschedule),
+    nout = nout
+  )
   on.exit(pbapply::pboptions(old_pboptions), add = TRUE)
 
   tryCatch(
