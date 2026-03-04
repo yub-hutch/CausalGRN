@@ -18,9 +18,17 @@
     export = NULL
 ) {
   ncores <- .causalgrn_normalize_ncores(ncores)
+  FUN <- match.fun(FUN)
 
   if (ncores <= 1L) {
-    return(lapply(X, FUN, ...))
+    if (!interactive()) {
+      return(lapply(X, FUN, ...))
+    }
+
+    old_pboptions <- pbapply::pboptions(type = "timer")
+    on.exit(pbapply::pboptions(old_pboptions), add = TRUE)
+
+    return(pbapply::pblapply(X, FUN, ...))
   }
 
   if (.Platform$OS.type != "windows") {
@@ -35,6 +43,10 @@
 
   cl <- parallel::makeCluster(ncores)
   on.exit(try(parallel::stopCluster(cl), silent = TRUE), add = TRUE)
+
+  if (!is.primitive(FUN)) {
+    environment(FUN) <- globalenv()
+  }
 
   parallel::clusterEvalQ(cl, {
     if (!requireNamespace("CausalGRN", quietly = TRUE)) {

@@ -60,7 +60,7 @@ calc_auc <- function(stat, thr, ncores = 1) {
     c(pearson = auc_pearson, spearman = auc_spearman)
   },
   ncores = ncores,
-  export = c("stat", "thr", "cor_probs")
+  export = c("stat", "thr", "cor_probs", ".calc_line", ".calc_auc")
   )
   auc <- do.call(rbind, auc_list)
   rownames(auc) <- kos
