@@ -42,7 +42,22 @@
   }
 
   cl <- parallel::makeCluster(ncores)
-  on.exit(try(parallel::stopCluster(cl), silent = TRUE), add = TRUE)
+  pids <- try(unlist(parallel::clusterCall(cl, base::Sys.getpid)), silent = TRUE)
+
+  .causalgrn_stop_cluster <- function(cl, pids = NULL, hard = FALSE) {
+    for (node in cl) {
+      try(parallel::sendData(node, list(type = "DONE", data = NULL, tag = NULL)), silent = TRUE)
+      try(close(node$con), silent = TRUE)
+    }
+    if (isTRUE(hard) && is.numeric(pids)) {
+      for (pid in pids) {
+        try(tools::pskill(pid), silent = TRUE)
+      }
+    }
+    invisible(TRUE)
+  }
+
+  on.exit(.causalgrn_stop_cluster(cl), add = TRUE)
 
   if (!is.primitive(FUN)) {
     environment(FUN) <- globalenv()
@@ -65,8 +80,8 @@
   tryCatch(
     pbapply::pblapply(X, FUN, ..., cl = cl),
     interrupt = function(e) {
-      try(parallel::stopCluster(cl), silent = TRUE)
-      stop(e)
+      .causalgrn_stop_cluster(cl, pids, hard = TRUE)
+      stop("Interrupted.", call. = FALSE)
     }
   )
 }
