@@ -10,12 +10,12 @@
 }
 
 .causalgrn_parallel_lapply <- function(
-    X,
-    FUN,
-    ...,
-    ncores = 1,
-    preschedule = TRUE,
-    export = NULL
+  X,
+  FUN,
+  ...,
+  ncores = 1,
+  preschedule = TRUE,
+  export = NULL
 ) {
   ncores <- .causalgrn_normalize_ncores(ncores)
   FUN <- match.fun(FUN)

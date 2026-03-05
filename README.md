@@ -24,6 +24,10 @@ Across both simulations and diverse experimental datasets, CausalGRN substantial
 You can install the development version of CausalGRN from GitHub with:
 
 ```r
+# Bioconductor dependencies
+if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+BiocManager::install(c("graph", "RBGL"))
+
 # install.packages("devtools")
 devtools::install_github("yub-hutch/CausalGRN")
 ```

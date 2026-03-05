@@ -39,62 +39,64 @@ perform_ci_test <- function(
 ) {
   edge_index <- get_edge_index(G)
   message('Performing CI test ...')
-  res <- .causalgrn_parallel_lapply(seq_len(nrow(edge_index)), function(pos) {
-    i <- edge_index[pos, 1]
-    j <- edge_index[pos, 2]
-    if (order == 0) {
-      A <- integer(0)
-    } else {
-      A <- setdiff(which(G[, i] | G[, j]), c(i, j))
-    }
-    if (length(A) < order) {
-      return(list(order_reached = TRUE))
-    }
-    pmax <- -1
-    chisqmin <- Inf
-    abspcormin <- Inf
-    iter <- iterpc::iterpc(length(A), order)
-    index <- iterpc::getnext(iter)
-    repeat {
-      S <- A[index]
+  res <- .causalgrn_parallel_lapply(
+    seq_len(nrow(edge_index)),
+    function(pos) {
+      i <- edge_index[pos, 1]
+      j <- edge_index[pos, 2]
       if (order == 0) {
-        res_test <- stats::cor.test(Y[, i], Y[, j])
-        curr_threshold <- NA
-        curr_sample_size <- NA
+        A <- integer(0)
+      } else {
+        A <- setdiff(which(G[, i] | G[, j]), c(i, j))
       }
-      if (order == 1) {
-        res_test <- calc_pcor(i = i, j = j, k = S, count = count, Y = Y, max_thr = max_thr, min_n1 = min_n1, min_n2 = min_n2)
-        curr_threshold <- res_test$threshold
-        curr_sample_size <- res_test$n
+      if (length(A) < order) {
+        return(list(order_reached = TRUE))
       }
-      chisq <- res_test$statistic ^ 2
-      pv <- res_test$p.value
-      abspcor <- abs(res_test$estimate)
-      pmax <- max(pmax, pv)
-      chisqmin <- min(chisqmin, chisq)
-      if (abspcor < abspcormin) {
-        abspcormin <- abspcor
-        threshold <- curr_threshold
-        sample_size <- curr_sample_size
+      pmax <- -1
+      chisqmin <- Inf
+      abspcormin <- Inf
+      iter <- iterpc::iterpc(length(A), order)
+      index <- iterpc::getnext(iter)
+      repeat {
+        S <- A[index]
+        if (order == 0) {
+          res_test <- stats::cor.test(Y[, i], Y[, j])
+          curr_threshold <- NA
+          curr_sample_size <- NA
+        }
+        if (order == 1) {
+          res_test <- calc_pcor(i = i, j = j, k = S, count = count, Y = Y, max_thr = max_thr, min_n1 = min_n1, min_n2 = min_n2)
+          curr_threshold <- res_test$threshold
+          curr_sample_size <- res_test$n
+        }
+        chisq <- res_test$statistic ^ 2
+        pv <- res_test$p.value
+        abspcor <- abs(res_test$estimate)
+        pmax <- max(pmax, pv)
+        chisqmin <- min(chisqmin, chisq)
+        if (abspcor < abspcormin) {
+          abspcormin <- abspcor
+          threshold <- curr_threshold
+          sample_size <- curr_sample_size
+        }
+        if (pmax > alpha || abspcormin < min_abspcor) {
+          return(list(
+            order_reached = FALSE, pmax = pmax, chisqmin = chisqmin, abspcormin = abspcormin,
+            threshold = threshold, sample_size = sample_size, sepset = S
+          ))
+        }
+        index = iterpc::getnext(iter)
+        if (is.null(index)) {
+          return(list(
+            order_reached = FALSE, pmax = pmax, chisqmin = chisqmin, abspcormin = abspcormin,
+            threshold = threshold, sample_size = sample_size
+          ))
+        }
       }
-      if (pmax > alpha || abspcormin < min_abspcor) {
-        return(list(
-          order_reached = FALSE, pmax = pmax, chisqmin = chisqmin, abspcormin = abspcormin,
-          threshold = threshold, sample_size = sample_size, sepset = S
-        ))
-      }
-      index = iterpc::getnext(iter)
-      if (is.null(index)) {
-        return(list(
-          order_reached = FALSE, pmax = pmax, chisqmin = chisqmin, abspcormin = abspcormin,
-          threshold = threshold, sample_size = sample_size
-        ))
-      }
-    }
-  },
-  ncores = ncores,
-  preschedule = (order == 0),
-  export = c("edge_index", "G", "order", "count", "Y", "max_thr", "min_n1", "min_n2", "alpha", "min_abspcor", "calc_pcor")
+    },
+    ncores = ncores,
+    preschedule = (order == 0),
+    export = c("edge_index", "G", "order", "count", "Y", "max_thr", "min_n1", "min_n2", "alpha", "min_abspcor", "calc_pcor")
   )
   message('Updating graph ...')
   needs_update <- !vapply(res, `[[`, logical(1), "order_reached")
