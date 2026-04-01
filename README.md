@@ -290,3 +290,27 @@ If you use CausalGRN in your research, please cite our paper:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+
+## Software Checklist Notes
+
+### Tested environments
+
+CausalGRN has been tested with:
+
+- macOS 26.3.1 (25D2128) with R 4.4.1
+- Ubuntu 18.04.6 LTS (Bionic Beaver) with R 4.3.2
+- Windows 24H2 with R 4.3.1
+
+Package dependencies are listed in `DESCRIPTION`.
+
+### Hardware requirements
+
+No non-standard hardware is required.
+
+### Installation time
+
+In our tested macOS environment, local installation of the package itself took about 5 seconds after dependencies were already installed. First-time installation may take longer because required dependencies may need to be installed separately.
+
+### Demo runtime
+
+In our tested macOS environment, the core example workflow in this README completed in about 0.5 seconds, excluding package installation and plotting. Runtime will vary across systems.
