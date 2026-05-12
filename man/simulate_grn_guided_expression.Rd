@@ -2,42 +2,65 @@
 % Please edit documentation in R/simulate_expression.R
 \name{simulate_grn_guided_expression}
 \alias{simulate_grn_guided_expression}
-\title{GRN-guided simulation of scRNA-seq data of wild-type and perturbed cells mimicking real data}
+\title{Simulate GRN-guided count data mimicking real single-cell perturbation data}
 \usage{
 simulate_grn_guided_expression(
   d,
-  Y,
+  count,
   group,
   min_coef = 0.3,
   max_coef = 0.5,
   center_normal_sd = 1,
-  center_ko_eff = 0.9
+  center_ko_eff = 0.9,
+  max_attempts = 10000
 )
 }
 \arguments{
-\item{d}{Expected number of neighbors (in/out).}
+\item{d}{Expected total degree per gene (parents plus children) in the DAG.}
 
-\item{Y}{Real single-cell perturbation data (cells x genes).}
+\item{count}{Reference count matrix (cells x genes).}
 
-\item{group}{Named vector of cell label: 'WT' for wild-type cells, perturbed gene for perturbed cell.}
+\item{group}{Named vector of cell labels. Use \code{"WT"} for wild-type cells
+and gene names for perturbed cells.}
 
-\item{min_coef}{Minimum value of simulated coefficients.}
+\item{min_coef}{Minimum absolute regulatory coefficient.}
 
-\item{max_coef}{Maximum value of simulated coefficients.}
+\item{max_coef}{Maximum absolute regulatory coefficient.}
 
-\item{center_normal_sd}{Center of standard deviations of latent normal variables. Gene specific SDs are sampled from Gamma distribution.}
+\item{center_normal_sd}{Center of latent normal standard deviations. Gene-specific
+variances are sampled from a Gamma distribution.}
 
-\item{center_ko_eff}{Center of KO efficacy. KO specific efficacy is sampled from Beta distribution.}
+\item{center_ko_eff}{Center of knockout efficacy. Cell-specific efficacies are
+sampled from a Beta distribution.}
+
+\item{max_attempts}{Maximum attempts to sample stable coefficients per gene.}
 }
 \value{
 List containing:
 \itemize{
   \item \code{dag}: Simulated DAG.
   \item \code{coef}: Simulated coefficients.
-  \item \code{Y}: Simulated expression.
+  \item \code{count}: Simulated count matrix.
   \item \code{group}: Simulated group.
 }
 }
 \description{
-Simulates gene expression based on simulated directed acyclic graph and real single-cell perturbation data.
+Simulates count data for wild-type and perturbed cells using a synthetic
+directed acyclic graph and a reference count matrix to mimic real data.
+}
+\examples{
+# Create a small reference count matrix mimicking real perturbation data.
+set.seed(1)
+genes <- paste0("Gene", 1:5)
+group <- rep(c("WT", "Gene1"), each = 50)
+names(group) <- paste0("cell", seq_along(group))
+count <- matrix(
+  rpois(length(group) * length(genes), lambda = 10),
+  nrow = length(group),
+  dimnames = list(names(group), genes)
+)
+
+# Simulate count data from a synthetic GRN.
+sim <- simulate_grn_guided_expression(d = 1, count = count, group = group)
+str(sim)
 }

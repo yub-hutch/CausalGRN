@@ -238,7 +238,7 @@ Here is an example of how to use the simulation function:
 # --- GRN-scPerturbSim Simulation Example ---
 
 # The simulation function `simulate_grn_guided_expression` requires a real single-cell
-# expression dataset (Y) and cell group labels (group) to learn data properties from.
+# count matrix (count) and cell group labels (group) to learn data properties from.
 # For this example, we will first generate a toy dataset to serve as this input.
 # In a real use case, you would load your own experimental data here.
 
@@ -250,35 +250,35 @@ kos <- c("Gene1", "Gene2")
 groups <- c("WT", kos)
 n_groups <- length(groups)
 
-# 1. Create a toy expression matrix `Y` and `group` vector.
+# 1. Create a toy count matrix `count` and `group` vector.
 # In your work, replace this with your actual scRNA-seq count matrix and cell labels.
-Y_real_data <- matrix(
+count_real_data <- matrix(
   rpois(n_groups * n_cells_per_group * n_genes, lambda = 10),
   nrow = n_groups * n_cells_per_group,
   ncol = n_genes
 )
-colnames(Y_real_data) <- genes
+colnames(count_real_data) <- genes
 
 group_real_data <- rep(groups, each = n_cells_per_group)
 cell_names <- paste0("Cell", 1:length(group_real_data))
-rownames(Y_real_data) <- cell_names
+rownames(count_real_data) <- cell_names
 names(group_real_data) <- cell_names
 
 # 2. Run the GRN-guided simulation using the toy data as input.
-sim_data <- simulate_grn_guided_expression(d = 2, Y = Y_real_data, group = group_real_data)
+sim_data <- simulate_grn_guided_expression(d = 2, count = count_real_data, group = group_real_data)
 
-# The output contains the simulated graph, coefficients, and new expression data.
+# The output contains the simulated graph, coefficients, and new count data.
 cat("Simulated DAG:\n")
 print(sim_data$dag)
 
 # You can plot the simulated graph.
 # plot(sim_data$dag)
 
-# The new simulated expression matrix is in sim_data$Y.
+# The new simulated count matrix is in sim_data$count.
 # The new group labels are in sim_data$group.
 ```
 
-This will generate a new dataset (`sim_data$Y` and `sim_data$group`) based on the properties of the input `Y_real_data` matrix, following the causal structure of the randomly generated `sim_data$dag`.
+This will generate a new dataset (`sim_data$count` and `sim_data$group`) based on the properties of the input `count_real_data` matrix, following the causal structure of the randomly generated `sim_data$dag`.
 
 ## Citation
 
