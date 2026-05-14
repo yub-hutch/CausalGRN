@@ -50,7 +50,7 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
   genes <- colnames(Y)
   if (!use_disk) {
     wt <- Y[group == 'WT', , drop = FALSE]
-    stat_list <- .causalgrn_parallel_lapply(kos, \(ko) {
+    stat_list <- .parallel_lapply(kos, \(ko) {
       pt <- Y[group == ko, , drop = FALSE]
       diffs <- colMeans(pt) - colMeans(wt)
       pooled_sds <- apply(rbind(wt, pt), 2, sd)
@@ -92,7 +92,7 @@ calc_perturbation_effect <- function(Y, group, ncores, use_disk = NULL) {
       cols <- chunks[[i]]
       sub_Y <- Y[, cols, drop = FALSE] # Read data from disk to memory
       wt <- sub_Y[group == 'WT', , drop = FALSE]
-      sub_stat_list <- .causalgrn_parallel_lapply(kos, \(ko) {
+      sub_stat_list <- .parallel_lapply(kos, \(ko) {
         ko_expr_wt <- ko_expr_wt_list[[ko]]
         pt <- sub_Y[group == ko, , drop = FALSE]
         diffs <- colMeans(pt) - colMeans(wt)

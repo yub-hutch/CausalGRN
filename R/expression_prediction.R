@@ -78,7 +78,7 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
   }
 
   # --- 2. Fit Models in Parallel ---
-  model_list <- .causalgrn_parallel_lapply(genes, function(gene) {
+  model_list <- .parallel_lapply(genes, function(gene) {
     # Initialize the full coefficient vector for this target gene
     coef_vector <- setNames(rep(0, p + 1), c('Intercept', genes))
 

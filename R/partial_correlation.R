@@ -10,7 +10,7 @@
 #' @param max_thr Maximum threshold for conditional variable.
 #' @param min_n1 Minimum number of samples satisfying Yk > selected threshold.
 #' @param min_n2 Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0.
-#' @return Data frame of threshold, sample size, partial correlation estimate, z-score, and p-value.
+#' @return Data frame of threshold, sample size, partial correlation estimate, t statistic, and p-value.
 #' @examples
 #' # Gene 1 -> Gene 2 -> Gene 3
 #' set.seed(123)

@@ -10,9 +10,7 @@ adj2igraph(
   chisqMin,
   absPcorMin,
   Threshold,
-  sampleSize,
-  max_nchildren,
-  max_nparent
+  sampleSize
 )
 }
 \arguments{
@@ -27,10 +25,6 @@ adj2igraph(
 \item{Threshold}{Threshold matrix corresponding to edges in `G`.}
 
 \item{sampleSize}{sampleSize matrix corresponding to edges in `G`.}
-
-\item{max_nchildren}{Maximum number of children a node can have.}
-
-\item{max_nparent}{Maximum number of parents a node can have.}
 }
 \value{
 Directed igraph object with edge attributes `pMax` and `chisqMin`.

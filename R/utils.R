@@ -11,7 +11,7 @@ parallel_cor <- function(mat, ncores) {
     return(cor(mat))
   }
   split_cols <- split(x = seq_len(ncol(mat)), f = cut(seq_len(ncol(mat)), ncores, labels = FALSE))
-  cors <- .causalgrn_parallel_lapply(
+  cors <- .parallel_lapply(
     split_cols,
     function(cols) cor(mat[, cols], mat),
     ncores = ncores,
@@ -46,40 +46,22 @@ get_edge_index <- function(G) {
 #' @param absPcorMin Partial correlation matrix corresponding to edges in `G`.
 #' @param Threshold Threshold matrix corresponding to edges in `G`.
 #' @param sampleSize sampleSize matrix corresponding to edges in `G`.
-#' @param max_nchildren Maximum number of children a node can have.
-#' @param max_nparent Maximum number of parents a node can have.
 #' @return Directed igraph object with edge attributes `pMax` and `chisqMin`.
 #' @export
-adj2igraph <- function(G, pMax, chisqMin, absPcorMin, Threshold, sampleSize, max_nchildren, max_nparent) {
+adj2igraph <- function(G, pMax, chisqMin, absPcorMin, Threshold, sampleSize) {
   graph <- igraph::graph_from_adjacency_matrix(G, mode = 'directed')
   # Delete unwanted edge attribute
   if ('weight' %in% igraph::edge_attr_names(graph)) {
     graph <- igraph::delete_edge_attr(graph, 'weight')
   }
   # Add attributes to edges
-  edges = do.call(rbind, strsplit(igraph::as_ids(igraph::E(graph)), '\\|'))
-  igraph::E(graph)$pMax <- pMax[edges]
-  igraph::E(graph)$chisqMin <- chisqMin[edges]
-  igraph::E(graph)$absPcorMin <- absPcorMin[edges]
-  igraph::E(graph)$threshold <- Threshold[edges]
-  igraph::E(graph)$n <- sampleSize[edges]
-  if (!is.infinite(max_nchildren)) {
-    df <- igraph::as_data_frame(graph)
-    df <- df |>
-      dplyr::group_by(from) |>
-      dplyr::arrange(dplyr::desc(absPcorMin)) |>
-      dplyr::slice_head(n = max_nchildren) |>
-      dplyr::ungroup()
-    graph <- igraph::graph_from_data_frame(df, directed = TRUE)
-  }
-  if (!is.infinite(max_nparent)) {
-    df <- igraph::as_data_frame(graph)
-    df <- df |>
-      dplyr::group_by(to) |>
-      dplyr::arrange(dplyr::desc(absPcorMin)) |>
-      dplyr::slice_head(n = max_nparent) |>
-      dplyr::ungroup()
-    graph <- igraph::graph_from_data_frame(df, directed = TRUE)
+  if (igraph::ecount(graph) > 0) {
+    edges <- do.call(rbind, strsplit(igraph::as_ids(igraph::E(graph)), '\\|'))
+    igraph::E(graph)$pMax <- pMax[edges]
+    igraph::E(graph)$chisqMin <- chisqMin[edges]
+    igraph::E(graph)$absPcorMin <- absPcorMin[edges]
+    igraph::E(graph)$threshold <- Threshold[edges]
+    igraph::E(graph)$n <- sampleSize[edges]
   }
   return(graph)
 }

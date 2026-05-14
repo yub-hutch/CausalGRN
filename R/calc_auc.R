@@ -49,7 +49,7 @@ calc_auc <- function(stat, thr, ncores = 1) {
   stopifnot(thr >= 0 & thr < 1)
   kos <- unique(stat$ko)
   cor_probs <- seq(thr, 1, by = 0.01)
-  auc_list <- .causalgrn_parallel_lapply(kos, function(ko) {
+  auc_list <- .parallel_lapply(kos, function(ko) {
     cds <- stat$cd[(stat$ko == ko) & (stat$gene != ko)]
     cors_pearson <- stat$cor_pearson[(stat$ko == ko) & (stat$gene != ko)]
     cors_spearman <- stat$cor_spearman[(stat$ko == ko) & (stat$gene != ko)]

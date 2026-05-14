@@ -165,7 +165,7 @@ run_lasso <- function(Y, ncores, nfold = 5) {
   }
   stopifnot(ncol(Y) > 2)
   genes <- colnames(Y)
-  coef_list <- .causalgrn_parallel_lapply(
+  coef_list <- .parallel_lapply(
     genes,
     function(g) {
       coef <- setNames(rep(NA, ncol(Y)), colnames(Y))

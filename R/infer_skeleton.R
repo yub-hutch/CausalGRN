@@ -1,45 +1,10 @@
-#' Perform conditional independence tests on graph edges
-#'
-#' Applies conditional independence (CI) tests to each edge in the graph `G`. Edges are evaluated in parallel,
-#' and those found conditionally independent given a subset of variables are removed.
-#' The function updates the graph and associated statistics accordingly.
-#'
-#' @param G Adjacency matrix.
-#' @param order Integer specifying the size of the conditioning set.
-#' @param max_order Maximum allowed size for the conditioning set.
-#' @param count scRNA-seq count matrix (cells x genes).
-#' @param Y scRNA-seq normalized expression matrix (cells × genes). For example, log1p(total UMI corrected count).
-#' @param max_thr Maximum threshold for conditional variable.
-#' @param min_n1 Minimum number of samples satisfying Yk > selected threshold.
-#' @param min_n2 Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0.
-#' @param alpha Significance level for the CI tests.
-#' @param min_abspcor Minimum absolute value of partial correlation for kept edges.
-#' @param pMax Matrix to store the maximum p-values for each edge.
-#' @param chisqMin Matrix to store the minimum chi-square statistics for each edge.
-#' @param absPcorMin Matrix to store the minimum absolute value of partial correlation for each edge.
-#' @param Threshold Matrix to store the count threshold of conditional variable when absPcorMin is achieved.
-#' @param sampleSize Matrix to store the sample size of the test giving absPcorMin.
-#' @param sepSet List of separation sets for each pair of nodes.
-#' @param ncores Number of cores to use for parallel processing.
-#'
-#' @return A list containing:
-#' \describe{
-#'   \item{G}{Updated adjacency matrix after removing conditionally independent edges.}
-#'   \item{pMax}{Updated matrix of maximum p-values for each edge.}
-#'   \item{chisqMin}{Updated matrix of minimum chi-square statistics for each edge.}
-#'   \item{absPcorMin}{Updated matrix of minimum absolute value of partial correlation for each edge.}
-#'   \item{Threshold}{Updated matrix of count threshold of conditional variable for each edge.}
-#'   \item{sampleSize}{Updated matrix of sample size of test for each edge.}
-#'   \item{sepSet}{Updated list of separation sets for each pair of nodes.}
-#'   \item{done}{Logical indicating whether all edges reached the specified order.}
-#' }
-#' @export
-perform_ci_test <- function(
+# Run one order of conditional independence tests and update skeleton statistics.
+.perform_ci_test <- function(
     G, order, max_order, count, Y, max_thr, min_n1, min_n2, alpha, min_abspcor, pMax, chisqMin, absPcorMin, Threshold, sampleSize, sepSet, ncores
 ) {
   edge_index <- get_edge_index(G)
   message('Performing CI test ...')
-  res <- .causalgrn_parallel_lapply(
+  res <- .parallel_lapply(
     seq_len(nrow(edge_index)),
     function(pos) {
       i <- edge_index[pos, 1]
@@ -155,8 +120,6 @@ perform_ci_test <- function(
 #' @param max_thr Maximum threshold for conditional variable (default is 10).
 #' @param min_n1 Minimum number of samples satisfying Yk > selected threshold (default is 1000).
 #' @param min_n2 Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0 (default is 200).
-#' @param max_nchildren Maximum number of children a node can have (default is Inf).
-#' @param max_nparent Maximum number of parents a node can have (default is Inf).
 #' @param sepset Return separation set or not (default is \code{TRUE}).
 #'
 #' @return A list with:
@@ -174,6 +137,7 @@ perform_ci_test <- function(
 #' u3 <- rnorm(n, u2)
 #' u <- cbind(g1 = u1, g2 = u2, g3 = u3)
 #' count <- apply(u, 2, function(x) rpois(n, lambda = exp(x)))
+#' rownames(count) <- paste0("cell", seq_len(nrow(count)))
 #' Y <- log1p(count)
 #' skel <- infer_skeleton(
 #'   count = count,
@@ -190,18 +154,26 @@ perform_ci_test <- function(
 #' @export
 infer_skeleton <- function(
     count, Y, alpha, min_abspcor, ncores, G = NULL, max_order = 1, max_thr = 10, min_n1 = 1000, min_n2 = 200,
-    max_nchildren = Inf, max_nparent = Inf, sepset = TRUE
+    sepset = TRUE
 ) {
-  stopifnot(identical(dimnames(count), dimnames(Y)))
-  # Check initial adjacency matrix
-  genes = colnames(Y)
+  .check_skeleton_data(count = count, Y = Y, G = G)
+  .check_skeleton_params(
+    alpha = alpha,
+    min_abspcor = min_abspcor,
+    max_order = max_order,
+    max_thr = max_thr,
+    min_n1 = min_n1,
+    min_n2 = min_n2,
+    ncores = ncores,
+    sepset = sepset
+  )
+
+  genes <- colnames(Y)
   if (is.null(G)) {
     G <- matrix(TRUE, length(genes), length(genes), dimnames = list(genes, genes))
     diag(G) <- FALSE
   } else {
-    stopifnot(setequal(rownames(G), genes) && setequal(colnames(G), genes))
-    stopifnot(!any(diag(G)))
-    G <- G[genes, genes]
+    G <- G != 0
   }
   last_nedge <- nedge <- sum(G) / 2
   message(paste0("Number of edges in initial graph: ", nedge))
@@ -220,7 +192,7 @@ infer_skeleton <- function(
   while (any(G) && (order <= max_order)) {
     message('------------------------------------------------')
     message(paste0('Order = ', order))
-    res <- perform_ci_test(
+    res <- .perform_ci_test(
       G = G,
       order = order,
       max_order = max_order,
@@ -259,8 +231,7 @@ infer_skeleton <- function(
     order <- order + 1
   }
   graph <- adj2igraph(
-    G = G, pMax = pMax, chisqMin = chisqMin, absPcorMin = absPcorMin, Threshold = Threshold, sampleSize = sampleSize,
-    max_nchildren = max_nchildren, max_nparent = max_nparent
+    G = G, pMax = pMax, chisqMin = chisqMin, absPcorMin = absPcorMin, Threshold = Threshold, sampleSize = sampleSize
   )
   return(list(graph = graph, sepSet = sepSet))
 }

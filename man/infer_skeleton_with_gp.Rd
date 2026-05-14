@@ -16,9 +16,7 @@ infer_skeleton_with_gp(
   max_order = 1,
   max_thr = 10,
   min_n1 = 1000,
-  min_n2 = 200,
-  max_nchildren = Inf,
-  max_nparent = Inf
+  min_n2 = 200
 )
 }
 \arguments{
@@ -45,10 +43,6 @@ infer_skeleton_with_gp(
 \item{min_n1}{Minimum number of samples satisfying Yk > selected threshold (default is 1000).}
 
 \item{min_n2}{Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0 (default is 200).}
-
-\item{max_nchildren}{Maximum number of children a node can have (default is Inf).}
-
-\item{max_nparent}{Maximum number of parents a node can have (default is Inf).}
 }
 \value{
 igraph object.

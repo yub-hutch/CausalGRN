@@ -15,8 +15,6 @@ infer_skeleton(
   max_thr = 10,
   min_n1 = 1000,
   min_n2 = 200,
-  max_nchildren = Inf,
-  max_nparent = Inf,
   sepset = TRUE
 )
 }
@@ -41,10 +39,6 @@ infer_skeleton(
 
 \item{min_n2}{Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0 (default is 200).}
 
-\item{max_nchildren}{Maximum number of children a node can have (default is Inf).}
-
-\item{max_nparent}{Maximum number of parents a node can have (default is Inf).}
-
 \item{sepset}{Return separation set or not (default is \code{TRUE}).}
 }
 \value{
@@ -67,6 +61,7 @@ u2 <- rnorm(n, u1)
 u3 <- rnorm(n, u2)
 u <- cbind(g1 = u1, g2 = u2, g3 = u3)
 count <- apply(u, 2, function(x) rpois(n, lambda = exp(x)))
+rownames(count) <- paste0("cell", seq_len(nrow(count)))
 Y <- log1p(count)
 skel <- infer_skeleton(
   count = count,
