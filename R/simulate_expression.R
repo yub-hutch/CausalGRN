@@ -57,7 +57,7 @@
 #' )
 #'
 #' # Simulate count data from a synthetic GRN.
-#' sim <- simulate_grn_guided_expression(d = 1, count = count, group = group)
+#' sim <- simulate_grn_guided_expression(d = 2, count = count, group = group)
 #' str(sim)
 #' @export
 simulate_grn_guided_expression <- function(
@@ -68,8 +68,8 @@ simulate_grn_guided_expression <- function(
   count <- .check_count_matrix(count)
   group <- .check_group(group, row_names = rownames(count), require_wt = TRUE, min_cells = 50)
 
-  if (length(d) != 1 || !is.finite(d) || d < 0) {
-    stop("'d' must be a single finite non-negative number.", call. = FALSE)
+  if (length(d) != 1 || !is.finite(d) || d <= 1) {
+    stop("'d' must be a single finite number > 1.", call. = FALSE)
   }
 
   if (length(min_coef) != 1 || !is.finite(min_coef) || min_coef < 0) {
@@ -105,6 +105,9 @@ simulate_grn_guided_expression <- function(
   }
 
   ngene <- length(genes)
+  if (d > ngene - 1) {
+    stop("'d' must be <= the number of genes - 1.", call. = FALSE)
+  }
 
   # Simulate DAG
   dag <- .sample_ba_dag(d = d, nodes = genes)

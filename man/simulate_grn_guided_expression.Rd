@@ -61,6 +61,6 @@ count <- matrix(
 )
 
 # Simulate count data from a synthetic GRN.
-sim <- simulate_grn_guided_expression(d = 1, count = count, group = group)
+sim <- simulate_grn_guided_expression(d = 2, count = count, group = group)
 str(sim)
 }
