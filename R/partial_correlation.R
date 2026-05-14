@@ -27,8 +27,8 @@
 #' ppcor::pcor.test(Y[, 1], Y[, 3], Y[, 2])
 #' ppcor::pcor.test(Y[, 1], Y[, 2], Y[, 3])
 #' # Corrected partial correlation
-#' calc_pcor(i = 1, j = 3, k = 2, count = count, Y = Y, max_thr = 20, min_n1 = 2000, min_n2 = 400)
-#' calc_pcor(i = 1, j = 2, k = 3, count = count, Y = Y, max_thr = 20, min_n1 = 2000, min_n2 = 400)
+#' calc_pcor(i = 1, j = 3, k = 2, count = count, Y = Y, max_thr = 20, min_n1 = 1000, min_n2 = 200)
+#' calc_pcor(i = 1, j = 2, k = 3, count = count, Y = Y, max_thr = 20, min_n1 = 1000, min_n2 = 200)
 #' @export
 calc_pcor <- function(i, j, k, count, Y, max_thr, min_n1, min_n2) {
   selected_thr <- -1

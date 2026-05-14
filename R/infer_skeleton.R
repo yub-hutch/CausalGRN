@@ -153,8 +153,8 @@ perform_ci_test <- function(
 #' @param G Optional initial adjacency matrix (defaults to a fully connected graph without self-loops).
 #' @param max_order Maximum conditioning set size (0 or 1, default is 1).
 #' @param max_thr Maximum threshold for conditional variable (default is 10).
-#' @param min_n1 Minimum number of samples satisfying Yk > selected threshold (default is 2000).
-#' @param min_n2 Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0 (default is 400).
+#' @param min_n1 Minimum number of samples satisfying Yk > selected threshold (default is 1000).
+#' @param min_n2 Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0 (default is 200).
 #' @param max_nchildren Maximum number of children a node can have (default is Inf).
 #' @param max_nparent Maximum number of parents a node can have (default is Inf).
 #' @param sepset Return separation set or not (default is \code{TRUE}).
@@ -189,7 +189,7 @@ perform_ci_test <- function(
 #'
 #' @export
 infer_skeleton <- function(
-    count, Y, alpha, min_abspcor, ncores, G = NULL, max_order = 1, max_thr = 10, min_n1 = 2000, min_n2 = 400,
+    count, Y, alpha, min_abspcor, ncores, G = NULL, max_order = 1, max_thr = 10, min_n1 = 1000, min_n2 = 200,
     max_nchildren = Inf, max_nparent = Inf, sepset = TRUE
 ) {
   stopifnot(identical(dimnames(count), dimnames(Y)))

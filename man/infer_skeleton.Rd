@@ -13,8 +13,8 @@ infer_skeleton(
   G = NULL,
   max_order = 1,
   max_thr = 10,
-  min_n1 = 2000,
-  min_n2 = 400,
+  min_n1 = 1000,
+  min_n2 = 200,
   max_nchildren = Inf,
   max_nparent = Inf,
   sepset = TRUE
@@ -37,9 +37,9 @@ infer_skeleton(
 
 \item{max_thr}{Maximum threshold for conditional variable (default is 10).}
 
-\item{min_n1}{Minimum number of samples satisfying Yk > selected threshold (default is 2000).}
+\item{min_n1}{Minimum number of samples satisfying Yk > selected threshold (default is 1000).}
 
-\item{min_n2}{Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0 (default is 400).}
+\item{min_n2}{Minimum number of samples satisfying Yk > selected threshold, Yi > 0, and Yj > 0 (default is 200).}
 
 \item{max_nchildren}{Maximum number of children a node can have (default is Inf).}
 
