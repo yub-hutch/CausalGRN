@@ -33,6 +33,7 @@ Imports:
     pbmcapply,
     pcalg,
     ppcor,
+    WGCNA,
     graph
 Suggests:
     bigstatsr,

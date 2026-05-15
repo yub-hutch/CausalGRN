@@ -152,7 +152,7 @@
 
 # Check scalar tuning parameters for skeleton inference.
 .check_skeleton_params <- function(
-    alpha, min_abspcor, max_order, max_thr, min_n1, min_n2, ncores, sepset
+    alpha, min_abspcor, max_order, max_thr, min_n1, min_n2, sepset
 ) {
   if (
     length(alpha) != 1L || !is.numeric(alpha) ||
