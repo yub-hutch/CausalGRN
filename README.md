@@ -108,6 +108,8 @@ kdC_counts <- cbind(
 # --- Combine and Prepare Inputs ---
 count <- rbind(wt_counts, kdA_counts, kdB_counts, kdC_counts)
 group <- c(rep('WT', nwt), rep('A', npt), rep('B', npt), rep('C', npt))
+rownames(count) <- paste0("cell", seq_len(nrow(count)))
+names(group) <- rownames(count)
 Y <- scale(log1p(count), center = TRUE, scale = TRUE)
 ```
 

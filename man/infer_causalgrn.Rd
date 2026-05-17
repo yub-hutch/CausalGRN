@@ -81,7 +81,9 @@ colMeans(koX_counts == 0)
 
 # --- 2. PREPARE INPUTS for GRN Methods ---
 count <- rbind(wt_counts, koX_counts)
-group <- factor(c(rep('WT', nwt), rep('A', npt)))
+group <- c(rep('WT', nwt), rep('A', npt))
+rownames(count) <- paste0("cell", seq_len(nrow(count)))
+names(group) <- rownames(count)
 Y <- scale(log1p(count), center = TRUE, scale = TRUE)
 colnames(count) <- colnames(Y) <- c('A', 'B', 'C')
 wt <- Y[group == 'WT', ]

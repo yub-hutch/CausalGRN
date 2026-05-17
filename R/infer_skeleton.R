@@ -219,7 +219,7 @@ infer_skeleton <- function(
     min_n2 = min_n2,
     sepset = sepset
   )
-  ncores <- .check_ncores(ncores)
+  .check_ncores(ncores)
 
   genes <- colnames(Y)
   if (is.null(G)) {

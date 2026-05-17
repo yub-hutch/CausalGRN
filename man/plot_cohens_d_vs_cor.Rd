@@ -28,6 +28,8 @@ group <- c(rep('WT', n), rep('x', n))
 y <- rnorm(2 * n, mean = x, sd = 1)
 z <- rnorm(2 * n, mean = y, sd = 1)
 data <- cbind(x = x, y = y, z = z)
+rownames(data) <- paste0("cell", seq_len(nrow(data)))
+names(group) <- rownames(data)
 stat <- calc_perturbation_effect(
   Y = data,
   group = group,

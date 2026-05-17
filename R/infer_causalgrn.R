@@ -1,14 +1,20 @@
 #' Direct edges using perturbation effect
 #'
-#' Infers causal GRN by directing edges based on differential expression caused by perturbations.
+#' Infers causal GRN by directing edges based on differential expression caused
+#' by perturbations.
 #'
 #' @param graph Initial igraph object.
 #' @param stat Perturbation effect from \code{\link{calc_perturbation_effect}}.
 #' @param alpha Numeric representing DE Q-value threshold.
-#' @param conservative Logical indicating whether to make conservative inference (Default is \code{TRUE}).
-#' @param max_order Integer representing the maximum order for DE descendant inference. Can be 1 or 2. Default is 1.
-#' @param max_dist Integer representing the maximum distance allowed for a perturbed gene to cause DE on another gene. Ignore for `max_order = 1`. Default is Inf.
-#' @param evidence Integer representing number of evidences needed for second-order orientation. Ignore for `max_order = 1`. Default is 1.
+#' @param conservative Logical indicating whether to make conservative inference
+#' (Default is \code{TRUE}).
+#' @param max_order Integer representing the maximum order for DE descendant
+#' inference. Can be 1 or 2. Default is 1.
+#' @param max_dist Integer representing the maximum distance allowed for a
+#' perturbed gene to cause DE on another gene. Ignore for `max_order = 1`.
+#' Default is Inf.
+#' @param evidence Integer representing number of evidences needed for
+#' second-order orientation. Ignore for `max_order = 1`. Default is 1.
 #'
 #' @examples
 #' # --- 0. SETUP: Load Libraries & Define Ground Truth ---
@@ -56,7 +62,9 @@
 #'
 #' # --- 2. PREPARE INPUTS for GRN Methods ---
 #' count <- rbind(wt_counts, koX_counts)
-#' group <- factor(c(rep('WT', nwt), rep('A', npt)))
+#' group <- c(rep('WT', nwt), rep('A', npt))
+#' rownames(count) <- paste0("cell", seq_len(nrow(count)))
+#' names(group) <- rownames(count)
 #' Y <- scale(log1p(count), center = TRUE, scale = TRUE)
 #' colnames(count) <- colnames(Y) <- c('A', 'B', 'C')
 #' wt <- Y[group == 'WT', ]
@@ -76,17 +84,28 @@
 #'
 #' @return igraph object.
 #' @export
-infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order = 1, max_dist = Inf, evidence = 1) {
+infer_causalgrn <- function(
+    graph, stat, alpha, conservative = TRUE, max_order = 1,
+    max_dist = Inf, evidence = 1
+) {
+  .check_causalgrn_data(graph = graph, stat = stat)
+  .check_causalgrn_params(
+    alpha = alpha,
+    conservative = conservative,
+    max_order = max_order,
+    max_dist = max_dist,
+    evidence = evidence
+  )
+
   kos <- unique(stat$ko)
   genes <- unique(stat$gene)
-  stopifnot(all(kos %in% genes))
-  stopifnot(nrow(stat) == length(kos) * length(genes))
-  stopifnot(setequal(genes, igraph::V(graph)$name))
+
   # Extract DE adjusted p-values
   adj_pv_mat <- as.matrix(stats::xtabs(adj_pv ~ ko + gene, data = stat))
+
   # Order 1 orientation
-  edges_to_delete <- c()
-  visited_kos <- c()
+  edges_to_delete <- character(0)
+  visited_kos <- character(0)
   for (ko in kos) {
     nodes <- igraph::neighbors(graph, ko, mode = 'all')$name
     nodes <- setdiff(nodes, visited_kos)
@@ -110,11 +129,17 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
       }
     }
   }
-  edge_ids_to_delete <- setdiff(igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE), 0)
-  if (length(edge_ids_to_delete)) graph <- igraph::delete_edges(graph, edge_ids_to_delete)
+  edge_ids_to_delete <- setdiff(
+    igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE),
+    0
+  )
+  if (length(edge_ids_to_delete)) {
+    graph <- igraph::delete_edges(graph, edge_ids_to_delete)
+  }
+
   # Order 2 orientation
   if (max_order == 2) {
-    edges_to_delete <- c()
+    edges_to_delete <- character(0)
     for (ko in kos) {
       children <- setdiff(
         igraph::neighbors(graph, ko, mode = 'out')$name,
@@ -138,13 +163,19 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
               mode = 'out'
             )[1, 1]
             is_child_on_all_paths <- (distance_wo_child >= max_dist + 1)
-            if (is_child_on_all_paths) edges_to_delete <- c(edges_to_delete, paste0(order2_node, '->', child))
+            if (is_child_on_all_paths) {
+              edges_to_delete <- c(edges_to_delete, paste0(order2_node, '->', child))
+            }
           }
         }
       }
     }
+
     # Only exclude edges with required evidence
-    if (length(edges_to_delete)) edges_to_delete <- names(which(table(edges_to_delete) >= evidence))
+    if (length(edges_to_delete)) {
+      edges_to_delete <- names(which(table(edges_to_delete) >= evidence))
+    }
+
     # Drop edges with conflict
     if (length(edges_to_delete)) {
       rev_edges_to_delete <- sub("^(.*)->(.*)$", "\\2->\\1", edges_to_delete)
@@ -154,9 +185,14 @@ infer_causalgrn <- function(graph, stat, alpha, conservative = TRUE, max_order =
     # Delete remaining edges
     if (length(edges_to_delete)) {
       edges_to_delete <- unlist(strsplit(edges_to_delete, '->'))
-      edge_ids_to_delete <- igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE)
+      edge_ids_to_delete <- igraph::get_edge_ids(
+        graph,
+        edges_to_delete,
+        directed = TRUE
+      )
       graph <- igraph::delete_edges(graph, edge_ids_to_delete)
     }
   }
+
   return(graph)
 }

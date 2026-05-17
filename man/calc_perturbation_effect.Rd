@@ -4,16 +4,26 @@
 \alias{calc_perturbation_effect}
 \title{Calculate Perturbation Effect}
 \usage{
-calc_perturbation_effect(Y, group, ncores, use_disk = NULL)
+calc_perturbation_effect(
+  Y,
+  group,
+  ncores,
+  min_cells = 50L,
+  gene_block_size = NULL
+)
 }
 \arguments{
 \item{Y}{Matrix of normalized scRNA-seq data of wild-type and perturbed cells.}
 
-\item{group}{Named vector of cell label: 'WT' for wild-type cells, perturbed gene for perturbed cell.}
+\item{group}{Named character vector of cell label: 'WT' for wild-type cells, perturbed gene for perturbed cell.}
 
 \item{ncores}{Number of CPUs to use.}
 
-\item{use_disk}{Write huge data matrix to disk for computation. Determined automatically under default \code{NULL}.}
+\item{min_cells}{Minimum number of cells required in each group.}
+
+\item{gene_block_size}{Number of genes per worker block. Under the default
+\code{NULL}, blocks are sized from \code{ncol(Y)} and \code{ncores} so
+workers receive slices instead of the full expression matrix.}
 }
 \value{
 Tibble with columns:
@@ -21,11 +31,11 @@ Tibble with columns:
   \item \code{ko}: Perturbed gene.
   \item \code{gene}: Affected gene.
   \item \code{diff}: Mean difference (Perturbed - WT).
-  \item \code{cd}: Cohen's D (Normalized mean difference).
+  \item \code{cd}: Cohen's D using the pooled within-group SD.
   \item \code{wilcox_pv}: Wilcoxon rank sum test P-value.
   \item \code{t_pv}: T-test P-value.
   \item \code{cor_pearson}: Pearson correlation in wild-type cells.
-  \item \code{cor_spearman}: Spearman correlation in all cells.
+  \item \code{cor_spearman}: Spearman correlation in wild-type cells.
   \item \code{wilcox_adj_pv}: BH-adjusted Wilcoxon rank sum test P-value.
   \item \code{t_adj_pv}: BH-adjusted T-test P-value.
   \item \code{adj_pv}: The larger of \code{wilcox_adj_pv} and \code{t_adj_pv}.
@@ -45,6 +55,8 @@ group <- c(rep('WT', n), rep('x', n))
 y <- rnorm(2 * n, mean = x, sd = 1)
 z <- rnorm(2 * n, mean = y, sd = 1)
 data <- cbind(x = x, y = y, z = z)
+rownames(data) <- paste0("cell", seq_len(nrow(data)))
+names(group) <- rownames(data)
 stat <- calc_perturbation_effect(
   Y = data,
   group = group,

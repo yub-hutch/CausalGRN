@@ -7,7 +7,7 @@
   preschedule = TRUE,
   export = NULL
 ) {
-  ncores <- .check_ncores(ncores)
+  .check_ncores(ncores)
   FUN <- match.fun(FUN)
   nout <- max(1L, min(1000L, length(X)))
 

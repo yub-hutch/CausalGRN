@@ -20,8 +20,8 @@ simulate_grn_guided_expression(
 
 \item{count}{Reference count matrix (cells x genes).}
 
-\item{group}{Named vector of cell labels. Use \code{"WT"} for wild-type cells
-and gene names for perturbed cells.}
+\item{group}{Named character vector of cell labels. Use \code{"WT"} for
+wild-type cells and gene names for perturbed cells.}
 
 \item{min_coef}{Minimum absolute regulatory coefficient.}
 

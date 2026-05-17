@@ -1,26 +1,3 @@
-#' Compute Pearson correlation matrix in parallel
-#'
-#' Efficiently computes the correlation matrix of a numeric matrix, using multiple cores for large matrices.
-#'
-#' @param mat Matrix.
-#' @param ncores Number of cores.
-#' @return Pearson correlation matrix.
-#' @export
-parallel_cor <- function(mat, ncores) {
-  if ((nrow(mat) < 1e4) && (ncol(mat) < 100)) {
-    return(cor(mat))
-  }
-  split_cols <- split(x = seq_len(ncol(mat)), f = cut(seq_len(ncol(mat)), ncores, labels = FALSE))
-  cors <- .parallel_lapply(
-    split_cols,
-    function(cols) cor(mat[, cols], mat),
-    ncores = ncores,
-    export = c("mat")
-  )
-  return(do.call(rbind, cors))
-}
-
-
 #' Get Edge Index of Adjacency matrix
 #'
 #' Get edge index of adjacency matrix.

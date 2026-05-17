@@ -93,6 +93,8 @@ koC_counts <- cbind(
 # --- 2. PREPARE INPUTS ---
 count <- rbind(wt_counts, koA_counts, koB_counts, koC_counts)
 group <- c(rep('WT', nwt), rep('A', npt), rep('B', npt), rep('C', npt))
+rownames(count) <- paste0("cell", seq_len(nrow(count)))
+names(group) <- rownames(count)
 Y <- scale(log1p(count), center = TRUE, scale = TRUE)
 colnames(count) <- colnames(Y) <- c('A', 'B', 'C')
 
