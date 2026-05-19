@@ -17,5 +17,5 @@ run_genie3(wt, ncores, verbose = FALSE)
 igraph object.
 }
 \description{
-Run GENIE3 algorithm and return an importance matrix.
+Run GENIE3 algorithm and return an igraph object.
 }

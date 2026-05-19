@@ -105,26 +105,27 @@
 
 
 # Check that normalized expression data are a finite numeric matrix.
-.check_expression_matrix <- function(Y) {
+.check_expression_matrix <- function(Y, arg = "Y") {
+  arg <- paste0("'", arg, "'")
   if (!is.matrix(Y) || !is.numeric(Y)) {
-    stop("'Y' must be a numeric matrix.", call. = FALSE)
+    stop(arg, " must be a numeric matrix.", call. = FALSE)
   }
   if (is.null(rownames(Y)) || is.null(colnames(Y))) {
-    stop("'Y' must have row and column names.", call. = FALSE)
+    stop(arg, " must have row and column names.", call. = FALSE)
   }
   if (
     anyNA(rownames(Y)) || anyNA(colnames(Y)) ||
       any(rownames(Y) == "") || any(colnames(Y) == "")
   ) {
-    stop("'Y' row and column names must be non-missing.", call. = FALSE)
+    stop(arg, " row and column names must be non-missing.", call. = FALSE)
   }
   if (anyDuplicated(rownames(Y)) || anyDuplicated(colnames(Y))) {
-    stop("'Y' row and column names must be unique.", call. = FALSE)
+    stop(arg, " row and column names must be unique.", call. = FALSE)
   }
 
   for (j in seq_len(ncol(Y))) {
     if (any(!is.finite(Y[, j]))) {
-      stop("'Y' must contain only finite values.", call. = FALSE)
+      stop(arg, " must contain only finite values.", call. = FALSE)
     }
   }
 

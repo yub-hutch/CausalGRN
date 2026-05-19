@@ -21,9 +21,11 @@ Tibble with columns:
   \item \code{recall}: Recall of the estimated graph.
   \item \code{precision}: Precision of the estimated graph.
   \item \code{f1}: F1 score of the estimated graph.
-  \item \code{shd}: Structural Hamming Distance (SHD) between the true and estimated graphs.
+  \item \code{shd}: Structural Hamming Distance (SHD) between the true and
+    estimated graphs, with a reversed edge counted as one difference.
 }
 }
 \description{
-This function evaluates the structure difference between the estimated directed graph and the true graph.
+This function evaluates the structure difference between the estimated
+directed graph and the true graph.
 }

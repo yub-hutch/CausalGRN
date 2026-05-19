@@ -15,5 +15,5 @@ format_grnboost2(file, genes)
 igraph object.
 }
 \description{
-Reads GRNBoost2 output csv file and returns importance matrix.
+Reads GRNBoost2 output csv file and returns an igraph object.
 }

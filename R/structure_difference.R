@@ -1,6 +1,7 @@
 #' Evaluate Structure Difference to True Graph
 #'
-#' This function evaluates the structure difference between the estimated directed graph and the true graph.
+#' This function evaluates the structure difference between the estimated
+#' directed graph and the true graph.
 #'
 #' @param g igraph object of the estimated graph.
 #' @param g0 igraph object of the true graph.
@@ -13,29 +14,71 @@
 #'   \item \code{recall}: Recall of the estimated graph.
 #'   \item \code{precision}: Precision of the estimated graph.
 #'   \item \code{f1}: F1 score of the estimated graph.
-#'   \item \code{shd}: Structural Hamming Distance (SHD) between the true and estimated graphs.
+#'   \item \code{shd}: Structural Hamming Distance (SHD) between the true and
+#'     estimated graphs, with a reversed edge counted as one difference.
 #' }
 #' @export
 structure_difference <- function(g, g0) {
+  if (!inherits(g, "igraph") || !inherits(g0, "igraph")) {
+    stop("'g' and 'g0' must be igraph objects.", call. = FALSE)
+  }
+
+  nodes <- igraph::V(g0)$name
+  if (is.null(nodes) || anyNA(nodes) || any(nodes == "")) {
+    stop("'g0' must have non-missing vertex names.", call. = FALSE)
+  }
+
+  true_adj <- igraph::as_adjacency_matrix(g0, sparse = FALSE) > 0
+  true_adj <- true_adj[nodes, nodes, drop = FALSE]
+
+  pred_adj <- matrix(
+    FALSE,
+    length(nodes),
+    length(nodes),
+    dimnames = list(nodes, nodes)
+  )
+  if (igraph::ecount(g) > 0L) {
+    pred_edges <- igraph::as_edgelist(g, names = TRUE)
+    if (!all(pred_edges %in% nodes)) {
+      stop("'g' edges must only use vertices in 'g0'.", call. = FALSE)
+    }
+    pred_adj[pred_edges] <- TRUE
+  }
+
+  nedge_true <- sum(true_adj)
+  nedge <- sum(pred_adj)
+  intersection <- sum(true_adj & pred_adj)
+  union_edges <- sum(true_adj | pred_adj)
+  jaccard <- intersection / union_edges
+  recall <- intersection / nedge_true
+  precision <- intersection / nedge
+  f1 <- 2 * intersection / (nedge_true + nedge)
+
+  upper <- upper.tri(true_adj)
+  true_relation <- true_adj + 2L * t(true_adj)
+  pred_relation <- pred_adj + 2L * t(pred_adj)
+
   dplyr::tibble(
-    nedge_true = igraph::ecount(g0),
-    nedge = igraph::ecount(g),
-    intersection = igraph::ecount(igraph::intersection(g0, g)),
-    jaccard = intersection / igraph::ecount(igraph::union(g0, g)),
-    recall = intersection / nedge_true,
-    precision = intersection / nedge,
-    f1 = 2 * precision * recall / (precision + recall),
-    shd = nedge_true + nedge - 2 * intersection
+    nedge_true = nedge_true,
+    nedge = nedge,
+    intersection = intersection,
+    jaccard = jaccard,
+    recall = recall,
+    precision = precision,
+    f1 = f1,
+    shd = sum(true_relation[upper] != pred_relation[upper])
   )
 }
 
 
-#' Evaluate Structure Difference to True Graph at Different Breaks of Top Predicted Edges
+#' Evaluate Structure Difference at Top-Edge Breaks
 #'
-#' This function extract the subgraph with top predicted edges and compare its structure with the true graph.
+#' This function extracts the subgraph with top predicted edges and compares its
+#' structure with the true graph.
 #'
 #' @param g0 igraph object of the true graph.
-#' @param pred Data frame of predicted directed edges with column \code{score} representing edge ranking.
+#' @param pred Data frame of predicted directed edges with columns \code{from},
+#'   \code{to}, and \code{score}.
 #' @param ntops Vector of number of top predicted edges to evaluate.
 #' @return Tibble with columns:
 #' \itemize{
@@ -47,16 +90,33 @@ structure_difference <- function(g, g0) {
 #'   \item \code{recall}: Recall of the estimated graph.
 #'   \item \code{precision}: Precision of the estimated graph.
 #'   \item \code{f1}: F1 score of the estimated graph.
-#'   \item \code{shd}: Structural Hamming Distance (SHD) between the true and estimated graphs.
+#'   \item \code{shd}: Structural Hamming Distance (SHD) between the true and
+#'     estimated graphs, with a reversed edge counted as one difference.
 #' }
 #' @export
 structure_difference_at_breaks <- function(pred, g0, ntops) {
-  stopifnot('score' %in% names(pred))
-  pred = pred|> dplyr::arrange(dplyr::desc(score))
-  ntops = sort(ntops[ntops <= nrow(pred)])
+  required_cols <- c("from", "to", "score")
+  if (!is.data.frame(pred) || !all(required_cols %in% names(pred))) {
+    stop(
+      "'pred' must contain columns 'from', 'to', and 'score'.",
+      call. = FALSE
+    )
+  }
+
+  pred <- pred[
+    order(pred$score, decreasing = TRUE),
+    required_cols,
+    drop = FALSE
+  ]
+  ntops <- sort(ntops[ntops <= nrow(pred)])
+
   do.call(rbind, lapply(ntops, function(ntop) {
-    g = igraph::graph_from_data_frame(pred[seq(ntop), ])
-    metrics = structure_difference(g = g, g0 = g0)
+    g <- igraph::graph_from_data_frame(
+      pred[seq_len(ntop), , drop = FALSE],
+      directed = TRUE,
+      vertices = data.frame(name = igraph::V(g0)$name)
+    )
+    metrics <- structure_difference(g = g, g0 = g0)
     dplyr::tibble(ntop = ntop, metrics)
   }))
 }

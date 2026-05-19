@@ -2,12 +2,13 @@
 % Please edit documentation in R/structure_difference.R
 \name{structure_difference_at_breaks}
 \alias{structure_difference_at_breaks}
-\title{Evaluate Structure Difference to True Graph at Different Breaks of Top Predicted Edges}
+\title{Evaluate Structure Difference at Top-Edge Breaks}
 \usage{
 structure_difference_at_breaks(pred, g0, ntops)
 }
 \arguments{
-\item{pred}{Data frame of predicted directed edges with column \code{score} representing edge ranking.}
+\item{pred}{Data frame of predicted directed edges with columns \code{from},
+\code{to}, and \code{score}.}
 
 \item{g0}{igraph object of the true graph.}
 
@@ -24,9 +25,11 @@ Tibble with columns:
   \item \code{recall}: Recall of the estimated graph.
   \item \code{precision}: Precision of the estimated graph.
   \item \code{f1}: F1 score of the estimated graph.
-  \item \code{shd}: Structural Hamming Distance (SHD) between the true and estimated graphs.
+  \item \code{shd}: Structural Hamming Distance (SHD) between the true and
+    estimated graphs, with a reversed edge counted as one difference.
 }
 }
 \description{
-This function extract the subgraph with top predicted edges and compare its structure with the true graph.
+This function extracts the subgraph with top predicted edges and compares its
+structure with the true graph.
 }
