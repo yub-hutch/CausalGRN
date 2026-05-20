@@ -4,12 +4,14 @@
 \alias{run_pc}
 \title{Run PC Algorithm}
 \usage{
-run_pc(wt, alpha)
+run_pc(wt, alpha, ncores = 1)
 }
 \arguments{
 \item{wt}{scRNA-seq matrix of wild-type cells.}
 
 \item{alpha}{Significance level for conditional independence tests.}
+
+\item{ncores}{Number of cores to use for parallel computation (default is 1).}
 }
 \value{
 igraph object.

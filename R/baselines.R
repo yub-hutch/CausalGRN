@@ -4,9 +4,10 @@
 #'
 #' @param wt scRNA-seq matrix of wild-type cells.
 #' @param alpha Significance level for conditional independence tests.
+#' @param ncores Number of cores to use for parallel computation (default is 1).
 #' @return igraph object.
 #' @export
-run_pc <- function(wt, alpha) {
+run_pc <- function(wt, alpha, ncores = 1) {
   .check_expression_matrix(wt, arg = "wt")
   if (
     length(alpha) != 1L || !is.numeric(alpha) ||
@@ -14,6 +15,7 @@ run_pc <- function(wt, alpha) {
   ) {
     stop("'alpha' must be a single finite number between 0 and 1.", call. = FALSE)
   }
+  .check_ncores(ncores)
 
   # Fit
   raw <- pcalg::pc(
@@ -26,7 +28,7 @@ run_pc <- function(wt, alpha) {
     conservative = FALSE,
     maj.rule = FALSE,
     solve.confl = TRUE,
-    numCores = 1,
+    numCores = ncores,
     verbose = FALSE
   )
 

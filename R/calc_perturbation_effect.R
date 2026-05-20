@@ -8,9 +8,9 @@
 #' perturbed gene for perturbed cell.
 #' @param ncores Number of CPUs to use.
 #' @param min_cells Minimum number of cells required in each group.
-#' @param gene_block_size Number of genes per worker block. Under the default
-#' \code{NULL}, blocks are sized from \code{ncol(Y)} and \code{ncores} so
-#' workers receive slices instead of the full expression matrix.
+#' @param gene_block_size Optional number of genes per block. Under the default
+#' \code{NULL}, block size is chosen from available memory. Set this manually to
+#' override automatic memory-aware blocking.
 #' @return Tibble with columns:
 #' \itemize{
 #'   \item \code{ko}: Perturbed gene.
@@ -63,16 +63,44 @@ calc_perturbation_effect <- function(
   wt_idx <- which(group == 'WT')
   ko_indices <- setNames(lapply(kos, \(ko) which(group == ko)), kos)
 
-  if (is.null(gene_block_size)) {
-    block_size <- max(1L, ceiling(length(genes) / ncores))
-  } else {
-    block_size <- gene_block_size
-  }
-  gene_blocks <- split(seq_along(genes), ceiling(seq_along(genes) / block_size))
-
   njobs <- min(ncores, length(kos))
   ko_batch_size <- ceiling(length(kos) / njobs)
   ko_batches <- split(kos, ceiling(seq_along(kos) / ko_batch_size))
+
+  if (is.null(gene_block_size)) {
+    available_bytes <- .available_memory_bytes()
+    if (is.na(available_bytes)) {
+      block_size <- length(genes)
+      message("Available memory could not be detected; using one gene batch.")
+    } else {
+      budget_fraction <- .memory_budget_fraction(available_bytes)
+      budget_bytes <- available_bytes * budget_fraction
+      rows_per_worker <- length(wt_idx) + max(vapply(
+        ko_batches,
+        \(batch) sum(lengths(ko_indices[batch])),
+        numeric(1)
+      ))
+      bytes_per_gene <- 8 * rows_per_worker * 4
+      block_size <- floor(budget_bytes / bytes_per_gene)
+      block_size <- max(1L, min(length(genes), block_size))
+
+      message(
+        "Auto gene_block_size = ", block_size,
+        " genes (available memory: ",
+        round(available_bytes / 1024^3, 1),
+        " GB; budget: ", budget_fraction * 100, "%; overhead: 4x)."
+      )
+    }
+  } else {
+    block_size <- gene_block_size
+    message("Using gene_block_size = ", block_size, " genes.")
+  }
+  gene_blocks <- split(seq_along(genes), ceiling(seq_along(genes) / block_size))
+
+  message(
+    "Processing ", length(gene_blocks), " gene batch(es); ",
+    length(ko_batches), " KO batch(es) per gene batch."
+  )
 
   stat_by_ko <- setNames(vector('list', length(kos)), kos)
   for (ko in kos) {
@@ -83,6 +111,10 @@ calc_perturbation_effect <- function(
     cols <- gene_blocks[[block_id]]
     wt_block <- Y[wt_idx, cols, drop = FALSE]
     block_genes <- genes[cols]
+    message(
+      "Gene batch ", block_id, "/", length(gene_blocks),
+      ": ", length(cols), " genes."
+    )
 
     # Workers receive only block-level slices, never the full Y matrix.
     jobs <- lapply(ko_batches, \(ko_batch) {
@@ -150,6 +182,126 @@ calc_perturbation_effect <- function(
   })
   names(stat_list) <- job$ko_batch
   return(stat_list)
+}
+
+
+# Read available physical memory in bytes. Return NA when unavailable.
+.available_memory_bytes <- function() {
+  sysname <- Sys.info()[["sysname"]]
+
+  if (identical(sysname, "Linux")) {
+    if (!file.exists("/proc/meminfo")) {
+      return(NA_real_)
+    }
+
+    meminfo <- readLines("/proc/meminfo", warn = FALSE)
+    line <- grep("^MemAvailable:", meminfo, value = TRUE)
+    if (!length(line)) {
+      return(NA_real_)
+    }
+
+    kb <- suppressWarnings(as.numeric(sub(
+      "^MemAvailable:\\s+([0-9]+).*",
+      "\\1",
+      line[1]
+    )))
+    if (is.na(kb) || kb <= 0) {
+      return(NA_real_)
+    }
+
+    return(kb * 1024)
+  }
+
+  if (identical(sysname, "Darwin")) {
+    page_size <- suppressWarnings(as.numeric(system2(
+      "sysctl",
+      c("-n", "hw.pagesize"),
+      stdout = TRUE,
+      stderr = FALSE
+    )[1]))
+    vm <- suppressWarnings(system2(
+      "vm_stat",
+      stdout = TRUE,
+      stderr = FALSE
+    ))
+    if (is.na(page_size) || page_size <= 0 || !length(vm)) {
+      return(NA_real_)
+    }
+
+    get_pages <- function(label) {
+      line <- grep(paste0("^", label, ":"), vm, value = TRUE)
+      if (!length(line)) {
+        return(0)
+      }
+      value <- gsub("[^0-9]", "", line[1])
+      suppressWarnings(as.numeric(value))
+    }
+
+    pages <- sum(
+      get_pages("Pages free"),
+      get_pages("Pages inactive"),
+      get_pages("Pages speculative"),
+      na.rm = TRUE
+    )
+    if (is.na(pages) || pages <= 0) {
+      return(NA_real_)
+    }
+
+    return(pages * page_size)
+  }
+
+  if (identical(.Platform$OS.type, "windows")) {
+    kb <- suppressWarnings(as.numeric(system2(
+      "powershell",
+      c(
+        "-NoProfile",
+        "-Command",
+        "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory"
+      ),
+      stdout = TRUE,
+      stderr = FALSE
+    )[1]))
+    if (is.na(kb) || kb <= 0) {
+      wmic <- suppressWarnings(system2(
+        "wmic",
+        c("OS", "get", "FreePhysicalMemory", "/Value"),
+        stdout = TRUE,
+        stderr = FALSE
+      ))
+      line <- grep("^FreePhysicalMemory=", wmic, value = TRUE)
+      if (length(line)) {
+        kb <- suppressWarnings(as.numeric(sub(
+          "^FreePhysicalMemory=",
+          "",
+          line[1]
+        )))
+      }
+    }
+    if (is.na(kb) || kb <= 0) {
+      return(NA_real_)
+    }
+
+    return(kb * 1024)
+  }
+
+  NA_real_
+}
+
+
+# Use more of available memory on large-memory machines.
+.memory_budget_fraction <- function(available_bytes) {
+  gb <- available_bytes / 1024^3
+  if (gb < 20) {
+    return(0.25)
+  }
+  if (gb < 100) {
+    return(0.50)
+  }
+  if (gb < 500) {
+    return(0.70)
+  }
+
+  0.80
 }
 
 

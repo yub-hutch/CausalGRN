@@ -21,9 +21,9 @@ calc_perturbation_effect(
 
 \item{min_cells}{Minimum number of cells required in each group.}
 
-\item{gene_block_size}{Number of genes per worker block. Under the default
-\code{NULL}, blocks are sized from \code{ncol(Y)} and \code{ncores} so
-workers receive slices instead of the full expression matrix.}
+\item{gene_block_size}{Optional number of genes per block. Under the default
+\code{NULL}, block size is chosen from available memory. Set this manually to
+override automatic memory-aware blocking.}
 }
 \value{
 Tibble with columns:
