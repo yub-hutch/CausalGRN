@@ -21,8 +21,8 @@ Tibble with columns:
   \item \code{recall}: Recall of the estimated graph.
   \item \code{precision}: Precision of the estimated graph.
   \item \code{f1}: F1 score of the estimated graph.
-  \item \code{shd}: Structural Hamming Distance (SHD) between the true and
-    estimated graphs, with a reversed edge counted as one difference.
+  \item \code{shd}: Structural Hamming Distance (SHD), as computed by
+    \code{pcalg::shd()}.
 }
 }
 \description{

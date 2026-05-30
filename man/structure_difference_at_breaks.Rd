@@ -4,7 +4,7 @@
 \alias{structure_difference_at_breaks}
 \title{Evaluate Structure Difference at Top-Edge Breaks}
 \usage{
-structure_difference_at_breaks(pred, g0, ntops)
+structure_difference_at_breaks(pred, g0, ntops, ncores = 1)
 }
 \arguments{
 \item{pred}{Data frame of predicted directed edges with columns \code{from},
@@ -13,6 +13,8 @@ structure_difference_at_breaks(pred, g0, ntops)
 \item{g0}{igraph object of the true graph.}
 
 \item{ntops}{Vector of number of top predicted edges to evaluate.}
+
+\item{ncores}{Number of cores to use for parallel computation (default is 1).}
 }
 \value{
 Tibble with columns:
@@ -25,8 +27,8 @@ Tibble with columns:
   \item \code{recall}: Recall of the estimated graph.
   \item \code{precision}: Precision of the estimated graph.
   \item \code{f1}: F1 score of the estimated graph.
-  \item \code{shd}: Structural Hamming Distance (SHD) between the true and
-    estimated graphs, with a reversed edge counted as one difference.
+  \item \code{shd}: Structural Hamming Distance (SHD), as computed by
+    \code{pcalg::shd()}.
 }
 }
 \description{

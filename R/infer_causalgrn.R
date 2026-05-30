@@ -10,11 +10,6 @@
 #' (Default is \code{TRUE}).
 #' @param max_order Integer representing the maximum order for DE descendant
 #' inference. Can be 1 or 2. Default is 1.
-#' @param max_dist Integer representing the maximum distance allowed for a
-#' perturbed gene to cause DE on another gene. Ignore for `max_order = 1`.
-#' Default is Inf.
-#' @param evidence Integer representing number of evidences needed for
-#' second-order orientation. Ignore for `max_order = 1`. Default is 1.
 #'
 #' @examples
 #' # --- 0. SETUP: Load Libraries & Define Ground Truth ---
@@ -85,21 +80,16 @@
 #' @return igraph object.
 #' @export
 infer_causalgrn <- function(
-    graph, stat, alpha, conservative = TRUE, max_order = 1,
-    max_dist = Inf, evidence = 1
+    graph, stat, alpha, conservative = TRUE, max_order = 1
 ) {
   .check_causalgrn_data(graph = graph, stat = stat)
   .check_causalgrn_params(
     alpha = alpha,
     conservative = conservative,
-    max_order = max_order,
-    max_dist = max_dist,
-    evidence = evidence
+    max_order = max_order
   )
 
   kos <- unique(stat$ko)
-  genes <- unique(stat$gene)
-
   # Extract DE adjusted p-values
   adj_pv_mat <- as.matrix(stats::xtabs(adj_pv ~ ko + gene, data = stat))
 
@@ -162,8 +152,8 @@ infer_causalgrn <- function(
               to = order2_node,
               mode = 'out'
             )[1, 1]
-            is_child_on_all_paths <- (distance_wo_child >= max_dist + 1)
-            if (is_child_on_all_paths) {
+            is_child_on_every_path <- is.infinite(distance_wo_child)
+            if (is_child_on_every_path) {
               edges_to_delete <- c(edges_to_delete, paste0(order2_node, '->', child))
             }
           }
@@ -171,9 +161,9 @@ infer_causalgrn <- function(
       }
     }
 
-    # Only exclude edges with required evidence
+    # Deduplicate edge deletion candidates.
     if (length(edges_to_delete)) {
-      edges_to_delete <- names(which(table(edges_to_delete) >= evidence))
+      edges_to_delete <- unique(edges_to_delete)
     }
 
     # Drop edges with conflict

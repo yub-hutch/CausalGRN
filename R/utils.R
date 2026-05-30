@@ -48,10 +48,10 @@ adj2igraph <- function(G, pMax, chisqMin, absPcorMin, Threshold, sampleSize) {
 #'
 #' Extract separation set of two genes from graph skeleton
 #'
-#' @param skel See \code{\link{infer_skeleton}} and \code{\link{infer_skeleton_with_gp}}.
+#' @param skel See \code{\link{infer_skeleton}}.
 #' @param g1 Gene name.
 #' @param g2 Gene name.
-#' @return Seperation set.
+#' @return Separation set.
 #' @export
 get_sepset <- function(skel, g1, g2) {
   stopifnot(!is.null(skel$sepSet))

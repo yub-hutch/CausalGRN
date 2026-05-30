@@ -389,9 +389,7 @@
 
 
 # Check scalar tuning parameters for causal GRN orientation.
-.check_causalgrn_params <- function(
-    alpha, conservative, max_order, max_dist, evidence
-) {
+.check_causalgrn_params <- function(alpha, conservative, max_order) {
   if (
     length(alpha) != 1L || !is.numeric(alpha) ||
       !is.finite(alpha) || alpha <= 0 || alpha >= 1
@@ -410,19 +408,6 @@
       !(max_order %in% c(1, 2))
   ) {
     stop("'max_order' must be 1 or 2.", call. = FALSE)
-  }
-  if (
-    length(max_dist) != 1L || !is.numeric(max_dist) ||
-      is.na(max_dist) || max_dist < 1 ||
-      (!is.infinite(max_dist) && max_dist != round(max_dist))
-  ) {
-    stop("'max_dist' must be a positive integer or Inf.", call. = FALSE)
-  }
-  if (
-    length(evidence) != 1L || !is.numeric(evidence) ||
-      !is.finite(evidence) || evidence < 1 || evidence != round(evidence)
-  ) {
-    stop("'evidence' must be a single positive integer.", call. = FALSE)
   }
 
   invisible(TRUE)

@@ -1,35 +1,54 @@
-#' Direct edges using perturbation effect with gene program
+#' Direct edges using perturbation effect with a gene program node
 #'
-#' Infers causal GRN by directing edges based on differential expression caused by perturbations.
+#' Infers causal GRN by directing edges based on differential expression caused
+#' by perturbations. Program genes are always allowed as parents of
+#' non-program genes.
 #'
 #' @param graph Initial igraph object.
 #' @param stat Perturbation effect from \code{\link{calc_perturbation_effect}}.
 #' @param alpha Numeric representing DE Q-value threshold.
-#' @param pname Gene program name.
-#' @param pgenes Gene program genes.
-#' @param allow_pgene_out Allow program genes as parents of non-program genes or not.
-#' @param conservative Logical indicating whether to make conservative inference (Default is \code{TRUE}).
-#' @param max_order Integer representing the maximum order for DE descendant inference. Can be 1 or 2. Default is 1.
-#' @param max_dist Integer representing the maximum distance allowed for a perturbed gene to cause DE on another gene. Ignore for `max_order = 1`. Default is Inf.
-#' @param evidence Integer representing number of evidences needed for second-order orientation. Ignore for `max_order = 1`. Default is 1.
+#' @param pname Gene program node name.
+#' @param pgenes Gene program member genes.
+#' @param conservative Logical indicating whether to make conservative inference
+#' (Default is \code{TRUE}).
+#' @param max_order Integer representing the maximum order for DE descendant
+#' inference. Can be 1 or 2. Default is 1.
 #'
 #' @return igraph object.
 #' @export
-infer_causalgrn_with_gp <- function(graph, stat, alpha, pname, pgenes, allow_pgene_out, conservative = TRUE, max_order = 1, max_dist = Inf, evidence = 1) {
+infer_causalgrn_with_gene_program <- function(
+    graph, stat, alpha, pname, pgenes, conservative = TRUE, max_order = 1
+) {
+  .check_causalgrn_data(graph = graph, stat = stat)
+  .check_causalgrn_params(
+    alpha = alpha,
+    conservative = conservative,
+    max_order = max_order
+  )
+
+  nodes <- igraph::V(graph)$name
+  genes <- setdiff(nodes, pname)
+  stopifnot(
+    length(pname) == 1L,
+    pname %in% nodes,
+    is.character(pgenes),
+    all(pgenes %in% genes)
+  )
+
   kos <- unique(stat$ko)
-  genes <- unique(stat$gene)
-  stopifnot(all(kos %in% genes))
-  stopifnot(nrow(stat) == length(kos) * length(genes))
-  stopifnot(setequal(genes, igraph::V(graph)$name))
+
   # Extract DE adjusted p-values
   adj_pv_mat <- as.matrix(stats::xtabs(adj_pv ~ ko + gene, data = stat))
+
   # Order 1 orientation
-  edges_to_delete <- c()
-  visited_kos <- c()
+  edges_to_delete <- character(0)
+  visited_kos <- character(0)
   for (ko in kos) {
     nodes <- igraph::neighbors(graph, ko, mode = 'all')$name
     nodes <- setdiff(nodes, visited_kos)
-    if (ko %in% pgenes) nodes <- setdiff(nodes, pname)
+    if (ko %in% pgenes) {
+      nodes <- setdiff(nodes, pname)
+    }
     visited_kos <- c(visited_kos, ko)
     if (length(nodes) == 0) next
     for (node in nodes) {
@@ -50,20 +69,17 @@ infer_causalgrn_with_gp <- function(graph, stat, alpha, pname, pgenes, allow_pge
       }
     }
   }
-  # If not allow program genes as parents of non program genes
-  if (!allow_pgene_out) {
-    npgenes <- setdiff(genes, c(pname, pgenes))
-    if (length(npgenes)) {
-      from <- rep(pgenes, each = length(npgenes))
-      to <- rep(npgenes, times = length(pgenes))
-      edges_to_delete = c(edges_to_delete, c(rbind(from, to)))
-    }
+  edge_ids_to_delete <- setdiff(
+    igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE),
+    0
+  )
+  if (length(edge_ids_to_delete)) {
+    graph <- igraph::delete_edges(graph, edge_ids_to_delete)
   }
-  eids_to_delete <- setdiff(igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE), 0)
-  if (length(eids_to_delete)) graph <- igraph::delete_edges(graph, eids_to_delete)
+
   # Order 2 orientation
   if (max_order == 2) {
-    edges_to_delete <- c()
+    edges_to_delete <- character(0)
     for (ko in kos) {
       children <- setdiff(
         igraph::neighbors(graph, ko, mode = 'out')$name,
@@ -86,14 +102,20 @@ infer_causalgrn_with_gp <- function(graph, stat, alpha, pname, pgenes, allow_pge
               to = order2_node,
               mode = 'out'
             )[1, 1]
-            is_child_on_all_paths <- (distance_wo_child >= max_dist + 1)
-            if (is_child_on_all_paths) edges_to_delete <- c(edges_to_delete, paste0(order2_node, '->', child))
+            is_child_on_every_path <- is.infinite(distance_wo_child)
+            if (is_child_on_every_path) {
+              edges_to_delete <- c(edges_to_delete, paste0(order2_node, '->', child))
+            }
           }
         }
       }
     }
-    # Only exclude edges with required evidence
-    if (length(edges_to_delete)) edges_to_delete <- names(which(table(edges_to_delete) >= evidence))
+
+    # Deduplicate edge deletion candidates.
+    if (length(edges_to_delete)) {
+      edges_to_delete <- unique(edges_to_delete)
+    }
+
     # Drop edges with conflict
     if (length(edges_to_delete)) {
       rev_edges_to_delete <- sub("^(.*)->(.*)$", "\\2->\\1", edges_to_delete)
@@ -103,9 +125,14 @@ infer_causalgrn_with_gp <- function(graph, stat, alpha, pname, pgenes, allow_pge
     # Delete remaining edges
     if (length(edges_to_delete)) {
       edges_to_delete <- unlist(strsplit(edges_to_delete, '->'))
-      edge_ids_to_delete <- igraph::get_edge_ids(graph, edges_to_delete, directed = TRUE)
+      edge_ids_to_delete <- igraph::get_edge_ids(
+        graph,
+        edges_to_delete,
+        directed = TRUE
+      )
       graph <- igraph::delete_edges(graph, edge_ids_to_delete)
     }
   }
+
   return(graph)
 }

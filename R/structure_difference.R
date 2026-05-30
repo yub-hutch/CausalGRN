@@ -14,8 +14,8 @@
 #'   \item \code{recall}: Recall of the estimated graph.
 #'   \item \code{precision}: Precision of the estimated graph.
 #'   \item \code{f1}: F1 score of the estimated graph.
-#'   \item \code{shd}: Structural Hamming Distance (SHD) between the true and
-#'     estimated graphs, with a reversed edge counted as one difference.
+#'   \item \code{shd}: Structural Hamming Distance (SHD), as computed by
+#'     \code{pcalg::shd()}.
 #' }
 #' @export
 structure_difference <- function(g, g0) {
@@ -37,6 +37,7 @@ structure_difference <- function(g, g0) {
     length(nodes),
     dimnames = list(nodes, nodes)
   )
+  pred_edges <- matrix(character(), ncol = 2)
   if (igraph::ecount(g) > 0L) {
     pred_edges <- igraph::as_edgelist(g, names = TRUE)
     if (!all(pred_edges %in% nodes)) {
@@ -54,9 +55,19 @@ structure_difference <- function(g, g0) {
   precision <- intersection / nedge
   f1 <- 2 * intersection / (nedge_true + nedge)
 
-  upper <- upper.tri(true_adj)
-  true_relation <- true_adj + 2L * t(true_adj)
-  pred_relation <- pred_adj + 2L * t(pred_adj)
+  pred_edge_df <- unique(data.frame(
+    from = pred_edges[, 1],
+    to = pred_edges[, 2]
+  ))
+  pred_graph <- igraph::graph_from_data_frame(
+    pred_edge_df,
+    directed = TRUE,
+    vertices = data.frame(name = nodes)
+  )
+  shd <- pcalg::shd(
+    igraph::as_graphnel(pred_graph),
+    igraph::as_graphnel(g0)
+  )
 
   dplyr::tibble(
     nedge_true = nedge_true,
@@ -66,7 +77,7 @@ structure_difference <- function(g, g0) {
     recall = recall,
     precision = precision,
     f1 = f1,
-    shd = sum(true_relation[upper] != pred_relation[upper])
+    shd = shd
   )
 }
 
@@ -80,6 +91,7 @@ structure_difference <- function(g, g0) {
 #' @param pred Data frame of predicted directed edges with columns \code{from},
 #'   \code{to}, and \code{score}.
 #' @param ntops Vector of number of top predicted edges to evaluate.
+#' @param ncores Number of cores to use for parallel computation (default is 1).
 #' @return Tibble with columns:
 #' \itemize{
 #'   \item \code{ntop}: Number of top predicted edges evaluated.
@@ -90,11 +102,11 @@ structure_difference <- function(g, g0) {
 #'   \item \code{recall}: Recall of the estimated graph.
 #'   \item \code{precision}: Precision of the estimated graph.
 #'   \item \code{f1}: F1 score of the estimated graph.
-#'   \item \code{shd}: Structural Hamming Distance (SHD) between the true and
-#'     estimated graphs, with a reversed edge counted as one difference.
+#'   \item \code{shd}: Structural Hamming Distance (SHD), as computed by
+#'     \code{pcalg::shd()}.
 #' }
 #' @export
-structure_difference_at_breaks <- function(pred, g0, ntops) {
+structure_difference_at_breaks <- function(pred, g0, ntops, ncores = 1) {
   required_cols <- c("from", "to", "score")
   if (!is.data.frame(pred) || !all(required_cols %in% names(pred))) {
     stop(
@@ -102,6 +114,7 @@ structure_difference_at_breaks <- function(pred, g0, ntops) {
       call. = FALSE
     )
   }
+  .check_ncores(ncores)
 
   pred <- pred[
     order(pred$score, decreasing = TRUE),
@@ -110,13 +123,20 @@ structure_difference_at_breaks <- function(pred, g0, ntops) {
   ]
   ntops <- sort(ntops[ntops <= nrow(pred)])
 
-  do.call(rbind, lapply(ntops, function(ntop) {
-    g <- igraph::graph_from_data_frame(
-      pred[seq_len(ntop), , drop = FALSE],
-      directed = TRUE,
-      vertices = data.frame(name = igraph::V(g0)$name)
-    )
-    metrics <- structure_difference(g = g, g0 = g0)
-    dplyr::tibble(ntop = ntop, metrics)
-  }))
+  metrics_list <- .parallel_lapply(
+    ntops,
+    function(ntop) {
+      g <- igraph::graph_from_data_frame(
+        pred[seq_len(ntop), , drop = FALSE],
+        directed = TRUE,
+        vertices = data.frame(name = igraph::V(g0)$name)
+      )
+      metrics <- structure_difference(g = g, g0 = g0)
+      dplyr::tibble(ntop = ntop, metrics)
+    },
+    ncores = ncores,
+    export = c("pred", "g0", "structure_difference")
+  )
+
+  do.call(rbind, metrics_list)
 }

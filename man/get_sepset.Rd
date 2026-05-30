@@ -7,14 +7,14 @@
 get_sepset(skel, g1, g2)
 }
 \arguments{
-\item{skel}{See \code{\link{infer_skeleton}} and \code{\link{infer_skeleton_with_gp}}.}
+\item{skel}{See \code{\link{infer_skeleton}}.}
 
 \item{g1}{Gene name.}
 
 \item{g2}{Gene name.}
 }
 \value{
-Seperation set.
+Separation set.
 }
 \description{
 Extract separation set of two genes from graph skeleton
