@@ -49,11 +49,10 @@
 calc_perturbation_effect <- function(
     Y, group, ncores, min_cells = 50L, gene_block_size = NULL
 ) {
-  .check_expression_matrix(Y)
-  .check_group(group, min_cells = min_cells)
   .check_perturbation_effect_inputs(
     Y = Y,
-    group = group
+    group = group,
+    min_cells = min_cells
   )
   .check_ncores(ncores)
   .check_perturbation_effect_params(gene_block_size = gene_block_size)

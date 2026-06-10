@@ -1,50 +1,11 @@
-#' Predict KO Effect Using the Mean Perturbation Effect Baseline
-#'
-#' This function calculates the average perturbation effect (delta from wild-type)
-#' from a training set and uses it to predict the effect for a test set.
-#'
-#' @param Y A numeric matrix of expression data (cells x genes).
-#' @param group A character or factor vector indicating the group for each cell in Y.
-#' @param train_kos A character vector of the training knockout group names.
-#' @param test_kos A character vector of the test knockout group names.
-#' @param wt_name A character string specifying the wild-type group name (default is "WT").
-#'
-#' @return A numeric matrix of predicted delta values (rows are test KOs, columns are genes).
-#' @export
-predict_mean_effect <- function(Y, group, train_kos, test_kos, wt_name = "WT") {
-
-  # 1. Perform aggressive data checks
-  stopifnot(wt_name %in% group)
-  stopifnot(all(train_kos %in% group))
-  stopifnot(all(test_kos %in% group))
-
-  # 2. Calculate the mean wild-type expression vector
-  wt_expressions <- colMeans(Y[group == wt_name, , drop = FALSE])
-
-  # 3. Calculate the "Mean Delta" from the training data
-  train_delta_matrix <- vapply(train_kos, function(ko) {
-    colMeans(Y[group == ko, , drop = FALSE]) - wt_expressions
-  }, FUN.VALUE = numeric(ncol(Y)))
-
-  # Average all the delta vectors together
-  mean_delta <- rowMeans(train_delta_matrix)
-
-  # 4. Create the final output matrix of predicted deltas
-  # Each row is the identical mean delta vector.
-  pred_matrix <- t(replicate(length(test_kos), mean_delta))
-  rownames(pred_matrix) <- test_kos
-
-  return(pred_matrix)
-}
-
-
 #' Fit Gene Expression Model
 #'
 #' Fits a predictive model for each gene's expression based on a given graph
 #' structure and regression method.
 #'
 #' @param Y A numeric matrix of expression data (cells x genes).
-#' @param group A character or factor vector indicating the group for each cell in Y.
+#' @param group Named character vector of cell labels: 'WT' for wild-type cells,
+#'   perturbed gene for perturbed cell.
 #' @param graph An igraph object or the character string 'all' specifying the
 #'   regulatory structure.
 #' @param ncores The number of cores for parallel computation.
@@ -53,6 +14,9 @@ predict_mean_effect <- function(Y, group, train_kos, test_kos, wt_name = "WT") {
 #'   and columns are targets (genes).
 #' @export
 fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lasso', 'ridge')) {
+  .check_perturbation_effect_inputs(Y = Y, group = group)
+  .check_ncores(ncores)
+
   # --- 1. Parameter and Graph Setup ---
   p <- ncol(Y)
   genes <- colnames(Y)
@@ -133,60 +97,6 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
 }
 
 
-#' Predict Oracle Perturbation Effect (Delta)
-#'
-#' Predicts the perturbation effect (delta from wild-type) for test cells using
-#' a fitted B matrix, where the true expression values of the predictors are
-#' known (oracle setting).
-#'
-#' @param B A numeric matrix of regulatory coefficients where rows are sources
-#'   ('Intercept' and genes) and columns are targets (genes). This is the output
-#'   of \code{\link{fit_expression_model}}.
-#' @param test_Y A numeric matrix of expression data (cells x genes) for which to
-#'   make predictions.
-#' @param test_group A character or factor vector indicating the group for each
-#'   cell in `test_Y`.
-#' @param wt_expressions A named numeric vector of the wild-type expression levels
-#'   for each gene.
-#' @return A numeric matrix of predicted delta values (rows are unique KOs,
-#'   columns are genes).
-#' @export
-predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
-  # --- 1. Input Validation ---
-  genes <- colnames(test_Y)
-  stopifnot(
-    is.matrix(B), is.matrix(test_Y),
-    is.numeric(wt_expressions), !is.null(names(wt_expressions)),
-    identical(colnames(B), genes),
-    identical(rownames(B), c('Intercept', genes)),
-    identical(names(wt_expressions), genes)
-  )
-
-  # --- 2. Perform Oracle Prediction for Absolute Expression ---
-  # Prepare the full input matrix by adding an intercept column to the test data.
-  X_full <- cbind(Intercept = 1, test_Y)
-
-  # The core prediction is a single, efficient matrix multiplication.
-  pred_cell_abs <- X_full %*% B
-
-  # --- 3. Aggregate Cell-Level Predictions to KO-Level ---
-  kos <- sort(unique(as.character(test_group)))
-
-  # Aggregate by taking the mean absolute prediction for all cells in a KO group.
-  pred_ko_abs <- vapply(kos, function(ko) {
-    colMeans(pred_cell_abs[test_group == ko, , drop = FALSE])
-  }, FUN.VALUE = numeric(length(genes)))
-
-  pred_ko_abs <- t(pred_ko_abs)
-
-  # --- 4. Convert Absolute Predictions to Delta Predictions ---
-  # Subtract the WT expression from each row to get the predicted effect.
-  pred_delta <- pred_ko_abs - matrix(wt_expressions, nrow = nrow(pred_ko_abs), ncol = ncol(pred_ko_abs), byrow = TRUE)
-
-  return(pred_delta)
-}
-
-
 #' Impute Unknown Perturbation Effects (Delta)
 #'
 #' A helper function that solves the linear system Δx = BΔx to find the
@@ -216,42 +126,10 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
 }
 
 
-#' Impute Absolute Expressions
-#' Solves the linear system in the absolute space: x = α + Bx.
-#' @noRd
-.impute_absolute <- function(B_full, known_expressions) {
-  # B_full is targets x (sources + Intercept).
-  genes <- rownames(B_full)
-
-  unknown_genes <- setdiff(genes, names(known_expressions))
-  if (length(unknown_genes) == 0) return(numeric(0))
-
-  # B_no_intercept should be the square, gene-only part of the matrix.
-  B_no_intercept <- B_full[genes, genes, drop = FALSE]
-  B_UU <- B_no_intercept[unknown_genes, unknown_genes, drop = FALSE]
-
-  epsilon <- 1e-8
-  eigen_vals <- base::eigen(B_UU, only.values = TRUE)$values
-  if (any(abs(eigen_vals) >= 1 - epsilon)) {
-    warning("System may be unstable (max |eigenvalue| >= 1 - epsilon).")
-  }
-
-  known_with_intercept <- c(1, known_expressions)
-  names(known_with_intercept) <- c('Intercept', names(known_expressions))
-
-  # The driving force includes the intercept term.
-  driving_force <- B_full[unknown_genes, names(known_with_intercept), drop = FALSE] %*% known_with_intercept
-  I_minus_B_UU <- diag(length(unknown_genes)) - B_UU
-  imputed <- base::solve(I_minus_B_UU, driving_force)
-  return(imputed[,1])
-}
-
-
 #' Predict Standard Perturbation Effect
 #'
 #' Predicts the perturbation effect for a set of KOs by propagating the
-#' initial perturbation through the network structure. Allows for modeling in
-#' either the "delta" or "absolute" expression space.
+#' initial perturbation through the network structure in delta space.
 #'
 #' @param B A numeric matrix of regulatory coefficients (sources x targets).
 #'   This is the output of \code{\link{fit_expression_model}}.
@@ -259,7 +137,6 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
 #' @param wt_expressions A named vector of wild-type expression levels.
 #' @param max_dist Maximum distance for effect propagation. Default is `Inf`.
 #'   Distances are calculated on the functional graph derived from B.
-#' @param space The modeling space. delta: propagate in expression change space. absolute: propagate in expression space.
 #' @examples
 #' # --- 0. SETUP: Load Libraries & Define Ground Truth ---
 #' library(dplyr)
@@ -350,13 +227,12 @@ predict_oracle_effect <- function(B, test_Y, test_group, wt_expressions) {
 #'   'B' = mean(Y[group == 'B', 'B']),
 #'   'C' = mean(Y[group == 'C', 'C'])
 #' )
-#' pred_effects <- predict_standard_effect(B, ko_expressions, wt_expressions)
+#' pred_effects <- predict_perturbation_effect(B, ko_expressions, wt_expressions)
 #' print(pred_effects)
 #' @return A numeric matrix of predicted delta values (KOs x genes).
 #' @export
-predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist = Inf, space = c("delta", "absolute")) {
+predict_perturbation_effect <- function(B, ko_expressions, wt_expressions, max_dist = Inf) {
   # --- 1. Input Validation and Setup ---
-  space <- match.arg(space)
   genes <- names(wt_expressions)
   ko_genes <- names(ko_expressions)
   stopifnot(
@@ -365,6 +241,12 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist 
     identical(rownames(B), c('Intercept', genes)),
     all(ko_genes %in% genes)
   )
+  if (
+    length(max_dist) != 1L || !is.numeric(max_dist) ||
+      is.na(max_dist) || max_dist < 0
+  ) {
+    stop("'max_dist' must be a single non-negative number or Inf.", call. = FALSE)
+  }
 
   # --- 2. Prepare B Matrix and Functional Graph ---
   B_propagator <- t(B[genes, , drop = FALSE])
@@ -377,34 +259,17 @@ predict_standard_effect <- function(B, ko_expressions, wt_expressions, max_dist 
     distances <- igraph::distances(graph_for_distances, v = ko_gene, mode = 'out')[1, ]
     unchanged_genes <- names(which(is.infinite(distances) | distances > max_dist))
 
-    if (space == "delta") {
-      known_deltas <- c()
-      known_deltas[ko_gene] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
-      known_deltas[unchanged_genes] <- 0
+    known_deltas <- c()
+    known_deltas[ko_gene] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
+    known_deltas[unchanged_genes] <- 0
 
-      imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
-      if (length(imputed_deltas) > 0) known_deltas[names(imputed_deltas)] <- imputed_deltas
-      stopifnot(
-        length(known_deltas) == length(genes),
-        setequal(names(known_deltas), genes)
-      )
-      return(known_deltas[genes])
-
-    } else if (space == 'absolute') {
-      pred_ko_abs <- c()
-      pred_ko_abs[ko_gene] <- ko_expressions[ko_gene]
-      pred_ko_abs[unchanged_genes] <- wt_expressions[unchanged_genes]
-
-      imputed_abs <- .impute_absolute(B_full = t(B), known_expressions = pred_ko_abs)
-      if (length(imputed_abs) > 0) pred_ko_abs[names(imputed_abs)] <- imputed_abs
-
-      # Convert the final absolute prediction to a delta
-      stopifnot(
-        length(pred_ko_abs) == length(genes),
-        setequal(names(pred_ko_abs), genes)
-      )
-      return(pred_ko_abs[genes] - wt_expressions)
-    }
+    imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
+    if (length(imputed_deltas) > 0) known_deltas[names(imputed_deltas)] <- imputed_deltas
+    stopifnot(
+      length(known_deltas) == length(genes),
+      setequal(names(known_deltas), genes)
+    )
+    return(known_deltas[genes])
   })
 
   # --- 4. Assemble and Return Final Matrix ---

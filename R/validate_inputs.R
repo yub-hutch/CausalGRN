@@ -219,7 +219,10 @@
 
 
 # Check inputs for perturbation-effect calculation.
-.check_perturbation_effect_inputs <- function(Y, group) {
+.check_perturbation_effect_inputs <- function(Y, group, min_cells = NULL) {
+  .check_expression_matrix(Y)
+  .check_group(group, min_cells = min_cells)
+
   if (length(group) != nrow(Y)) {
     stop("'group' must have one label per row of 'Y'.", call. = FALSE)
   }

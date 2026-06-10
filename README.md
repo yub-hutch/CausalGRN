@@ -206,7 +206,7 @@ knockdown_expressions <- c(
 )
 
 # Predict the delta (change from WT) for all genes
-pred_effects <- predict_standard_effect(B_fit, knockdown_expressions, wt_expressions)
+pred_effects <- predict_perturbation_effect(B_fit, knockdown_expressions, wt_expressions)
 
 cat("Predicted effects matrix:\n")
 print(pred_effects)

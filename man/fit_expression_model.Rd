@@ -15,7 +15,8 @@ fit_expression_model(
 \arguments{
 \item{Y}{A numeric matrix of expression data (cells x genes).}
 
-\item{group}{A character or factor vector indicating the group for each cell in Y.}
+\item{group}{Named character vector of cell labels: 'WT' for wild-type cells,
+perturbed gene for perturbed cell.}
 
 \item{graph}{An igraph object or the character string 'all' specifying the
 regulatory structure.}
