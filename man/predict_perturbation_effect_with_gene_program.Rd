@@ -12,7 +12,8 @@ predict_perturbation_effect_with_gene_program(
   wt_expressions,
   pname,
   pgenes,
-  scale_pname = TRUE
+  scale_pname = TRUE,
+  model_selection = c("exact", "best_adj_r_squared")
 )
 }
 \arguments{
@@ -33,6 +34,11 @@ format used by \code{\link{fit_expression_model_with_gene_program}}.}
 
 \item{scale_pname}{Logical. If TRUE, apply the stored variance calibration to
 the predicted gene program node effect.}
+
+\item{model_selection}{Portability model selection strategy. \code{"exact"}
+preserves the original behavior and uses only the model matching all
+available sources for a KO. \code{"best_adj_r_squared"} chooses the
+significant available-source subset model with highest adjusted R-squared.}
 }
 \value{
 A numeric matrix of predicted delta values for the test KOs.

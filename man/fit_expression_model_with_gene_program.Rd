@@ -37,7 +37,9 @@ source effects should be encoded as \code{NA}.}
 determine whether a portability model is valid.}
 }
 \value{
-A list containing `B_matrix` and `portability_models`. `portability_models` contains a model for each combination of sources, plus fallback values.
+A list containing `B_matrix` and `portability_models`. `portability_models`
+contains a model for each combination of sources, adjusted R-squared values for
+model selection, and fallback values.
 }
 \description{
 Trains a GRN model and a set of hierarchically inclusive portability models

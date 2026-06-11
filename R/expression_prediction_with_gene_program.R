@@ -16,8 +16,8 @@
 #' @param alpha Significance level threshold (F-statistic p-value) used to
 #'   determine whether a portability model is valid.
 #' @return A list containing `B_matrix` and `portability_models`.
-#'   `portability_models` contains a model for each combination of sources, plus
-#'   fallback values.
+#'   `portability_models` contains a model for each combination of sources,
+#'   adjusted R-squared values for model selection, and fallback values.
 #' @export
 fit_expression_model_with_gene_program <- function(
   Y, group, graph, source_effects, pname, pgenes, ncores, alpha = 0.1
@@ -131,6 +131,7 @@ fit_expression_model_with_gene_program <- function(
       fstat <- fit_summary$fstatistic
       p_value <- stats::pf(fstat[1], fstat[2], fstat[3], lower.tail = FALSE)
       is_significant <- !is.na(p_value) && p_value < alpha
+      adj_r_squared <- fit_summary$adj.r.squared
 
       # Linear portability models can get the direction right but shrink or
       # inflate the magnitude.  Store a scale correction so prediction can match
@@ -149,13 +150,15 @@ fit_expression_model_with_gene_program <- function(
       portability_models[[model_name]] <- list(
         model = portability_fit,
         scale_factor = scale_factor,
-        is_significant = is_significant
+        is_significant = is_significant,
+        adj_r_squared = adj_r_squared
       )
     } else {
       portability_models[[model_name]] <- list(
         model = NULL,
         scale_factor = 1.0,
-        is_significant = FALSE
+        is_significant = FALSE,
+        adj_r_squared = NA_real_
       )
     }
   }
@@ -179,11 +182,16 @@ fit_expression_model_with_gene_program <- function(
 #' @param pgenes Character vector of gene program member genes.
 #' @param scale_pname Logical. If TRUE, apply the stored variance calibration to
 #'   the predicted gene program node effect.
+#' @param model_selection Portability model selection strategy. \code{"exact"}
+#'   preserves the original behavior and uses only the model matching all
+#'   available sources for a KO. \code{"best_adj_r_squared"} chooses the
+#'   significant available-source subset model with highest adjusted R-squared.
 #' @return A numeric matrix of predicted delta values for the test KOs.
 #' @export
 predict_perturbation_effect_with_gene_program <- function(
   B, portability_models, source_effects, ko_expressions, wt_expressions,
-  pname, pgenes, scale_pname = TRUE
+  pname, pgenes, scale_pname = TRUE,
+  model_selection = c('exact', 'best_adj_r_squared')
 ) {
   # Validate the target expression vectors, fitted GRN model, source effects, and
   # gene program definition before choosing any portability model.
@@ -210,6 +218,7 @@ predict_perturbation_effect_with_gene_program <- function(
   ) {
     stop("'scale_pname' must be TRUE or FALSE.", call. = FALSE)
   }
+  model_selection <- match.arg(model_selection)
 
   B_propagator <- t(B[genes, , drop = FALSE])
   all_source_names <- names(source_effects)
@@ -257,34 +266,93 @@ predict_perturbation_effect_with_gene_program <- function(
       FUN.VALUE = logical(1)
     )]
 
+    selected_sources <- character(0)
+    model_entry <- NULL
+
     if (length(available_sources) == 0) {
       use_fallback <- TRUE
-    } else {
+    } else if (model_selection == 'exact') {
       model_name <- paste(sort(available_sources), collapse = "_and_")
       model_entry <- portability_models[[model_name]]
+      selected_sources <- available_sources
 
       # Use a portability model only if it exists and passed the fit-time
       # F-test threshold.  Otherwise fall back to target training averages.
       if (is.null(model_entry) || !isTRUE(model_entry$is_significant)) {
         use_fallback <- TRUE
+      }
+    } else {
+      # Consider every trained model whose source set is available for this KO.
+      source_subsets <- unlist(
+        lapply(seq_along(available_sources), function(k) {
+          utils::combn(available_sources, k, simplify = FALSE)
+        }),
+        recursive = FALSE
+      )
+      candidate_model_names <- vapply(
+        source_subsets,
+        function(source_subset) {
+          paste(sort(source_subset), collapse = "_and_")
+        },
+        FUN.VALUE = character(1)
+      )
+      candidate_models <- portability_models[candidate_model_names]
+
+      valid_candidates <- vapply(
+        candidate_models,
+        function(candidate_model) {
+          !is.null(candidate_model) && !is.null(candidate_model$model) &&
+            isTRUE(candidate_model$is_significant)
+        },
+        FUN.VALUE = logical(1)
+      )
+
+      if (!any(valid_candidates)) {
+        use_fallback <- TRUE
       } else {
-        # Build the single-row source-effect table for this KO, then predict the
-        # target gene program node delta.
-        ko_data_list <- lapply(available_sources, function(source_name) {
-          dplyr::filter(source_effects[[source_name]], ko == ko_gene)
-        })
-        ko_data <- Reduce(
-          function(x, y) dplyr::full_join(x, y, by = 'ko'),
-          ko_data_list
+        valid_models <- candidate_models[valid_candidates]
+        valid_source_subsets <- source_subsets[valid_candidates]
+        adj_r_squared <- vapply(
+          valid_models,
+          function(valid_model) {
+            if (
+              !is.numeric(valid_model$adj_r_squared) ||
+                length(valid_model$adj_r_squared) != 1L ||
+                is.na(valid_model$adj_r_squared)
+            ) {
+              stop(
+                "Portability models are missing 'adj_r_squared'; refit with ",
+                "fit_expression_model_with_gene_program().",
+                call. = FALSE
+              )
+            }
+            valid_model$adj_r_squared
+          },
+          FUN.VALUE = numeric(1)
         )
+        selected_idx <- which.max(adj_r_squared)
+        model_entry <- valid_models[[selected_idx]]
+        selected_sources <- valid_source_subsets[[selected_idx]]
+      }
+    }
 
-        raw_pred <- stats::predict(model_entry$model, newdata = ko_data)
+    if (!use_fallback) {
+      # Build the single-row source-effect table for this KO, then predict the
+      # target gene program node delta.
+      ko_data_list <- lapply(selected_sources, function(source_name) {
+        dplyr::filter(source_effects[[source_name]], ko == ko_gene)
+      })
+      ko_data <- Reduce(
+        function(x, y) dplyr::full_join(x, y, by = 'ko'),
+        ko_data_list
+      )
 
-        predicted_pname_delta <- if (scale_pname) {
-          raw_pred * model_entry$scale_factor
-        } else {
-          raw_pred
-        }
+      raw_pred <- stats::predict(model_entry$model, newdata = ko_data)
+
+      predicted_pname_delta <- if (scale_pname) {
+        raw_pred * model_entry$scale_factor
+      } else {
+        raw_pred
       }
     }
 
