@@ -2,10 +2,16 @@
 #
 # Shared checks:
 # - .check_ncores(): check positive core count.
+# - .check_alpha(): check significance threshold.
 # - .check_group(): check named character group labels and optional cell counts.
 # - .check_count_matrix(): check dense, finite, non-negative count matrix.
 # - .check_expression_matrix(): check finite numeric expression matrix.
 # - .check_adjacency_matrix(): check optional adjacency matrix against nodes.
+# - .check_igraph(): check igraph object, vertex names, and optional node set.
+# - .check_gene_program_nodes(): check gene program node and member genes.
+# - .check_expression_vector(): check named numeric expression vector.
+# - .check_expression_model_matrix(): check fitted expression-model B matrix.
+# - .check_source_effects(): check source-effect list format.
 #
 # Function-specific checks:
 # - .check_expression_simulator_params(): check simulator scalar parameters.
@@ -25,6 +31,19 @@
       ncores < 1 || ncores != round(ncores)
   ) {
     stop("'ncores' must be a single positive integer.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
+# Check alpha threshold input.
+.check_alpha <- function(alpha) {
+  if (
+    length(alpha) != 1L || !is.numeric(alpha) ||
+      !is.finite(alpha) || alpha <= 0 || alpha >= 1
+  ) {
+    stop("'alpha' must be a single finite number between 0 and 1.", call. = FALSE)
   }
 
   invisible(TRUE)
@@ -163,6 +182,144 @@
 }
 
 
+# Check an igraph object against an optional node set.
+.check_igraph <- function(graph, nodes = NULL) {
+  if (!inherits(graph, "igraph")) {
+    stop("'graph' must be an igraph object.", call. = FALSE)
+  }
+
+  graph_nodes <- igraph::V(graph)$name
+  if (
+    is.null(graph_nodes) || anyNA(graph_nodes) ||
+      any(graph_nodes == "") || anyDuplicated(graph_nodes)
+  ) {
+    stop("'graph' vertices must have non-missing unique names.", call. = FALSE)
+  }
+  if (!is.null(nodes) && !setequal(nodes, graph_nodes)) {
+    stop("'graph' vertex names must match expected nodes.", call. = FALSE)
+  }
+  if (igraph::any_loop(graph)) {
+    stop("'graph' must not contain self-loops.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
+# Check gene program node and member genes against expected nodes.
+.check_gene_program_nodes <- function(pname, pgenes, nodes) {
+  if (
+    !is.character(pname) || length(pname) != 1L ||
+      is.na(pname) || pname == ""
+  ) {
+    stop("'pname' must be a single non-missing character string.", call. = FALSE)
+  }
+  if (!pname %in% nodes) {
+    stop("'pname' must be included in expected nodes.", call. = FALSE)
+  }
+
+  genes <- setdiff(nodes, pname)
+  if (
+    !is.character(pgenes) || length(pgenes) == 0L ||
+      anyNA(pgenes) || any(pgenes == "") || anyDuplicated(pgenes)
+  ) {
+    stop("'pgenes' must be a non-empty unique character vector.", call. = FALSE)
+  }
+  if (!all(pgenes %in% genes)) {
+    stop("'pgenes' must be a subset of non-program genes.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
+# Check a named numeric expression vector.
+.check_expression_vector <- function(x, arg, expected_names = NULL) {
+  label <- paste0("'", arg, "'")
+  x_names <- names(x)
+  if (
+    !is.numeric(x) || is.null(x_names) ||
+      anyNA(x_names) || any(x_names == "") || anyDuplicated(x_names)
+  ) {
+    stop(label, " must be a named numeric vector.", call. = FALSE)
+  }
+  if (!is.null(expected_names) && !identical(x_names, expected_names)) {
+    stop(label, " names must match expected genes.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
+# Check a fitted expression-model coefficient matrix.
+.check_expression_model_matrix <- function(B, genes) {
+  if (!is.matrix(B) || !is.numeric(B)) {
+    stop("'B' must be a numeric matrix.", call. = FALSE)
+  }
+  if (!identical(colnames(B), genes)) {
+    stop("'B' column names must match expected genes.", call. = FALSE)
+  }
+  if (!identical(rownames(B), c("Intercept", genes))) {
+    stop("'B' row names must be c('Intercept', expected genes).", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
+# Check source-effect list format: list name -> data frame columns ko and name.
+.check_source_effects <- function(source_effects) {
+  if (
+    !is.list(source_effects) || is.data.frame(source_effects) ||
+      length(source_effects) == 0L
+  ) {
+    stop("'source_effects' must be a non-empty named list.", call. = FALSE)
+  }
+
+  source_names <- names(source_effects)
+  if (
+    is.null(source_names) || anyNA(source_names) ||
+      any(source_names == "") || anyDuplicated(source_names)
+  ) {
+    stop("'source_effects' names must be non-missing and unique.", call. = FALSE)
+  }
+
+  for (source_name in source_names) {
+    source_effect <- source_effects[[source_name]]
+    if (
+      !is.data.frame(source_effect) ||
+        ncol(source_effect) != 2L ||
+        !setequal(colnames(source_effect), c("ko", source_name))
+    ) {
+      stop(
+        "Each entry in 'source_effects' must contain exactly columns ",
+        "'ko' and its source name.",
+        call. = FALSE
+      )
+    }
+    if (
+      anyNA(source_effect$ko) ||
+        any(as.character(source_effect$ko) == "")
+    ) {
+      stop("'source_effects' ko values must be non-missing.", call. = FALSE)
+    }
+    if (anyDuplicated(as.character(source_effect$ko))) {
+      stop("'source_effects' must contain at most one row per ko.", call. = FALSE)
+    }
+
+    x <- source_effect[[source_name]]
+    if (!is.numeric(x) || any(!is.finite(x[!is.na(x)]))) {
+      stop(
+        "Source-effect columns in 'source_effects' must be numeric.",
+        call. = FALSE
+      )
+    }
+  }
+
+  invisible(TRUE)
+}
+
+
 # Check scalar parameters for GRN-guided expression simulation.
 .check_expression_simulator_params <- function(
     d, min_coef, max_coef, center_normal_sd, center_ko_eff, max_attempts
@@ -196,12 +353,15 @@
 
   if (
     length(center_ko_eff) != 1L ||
-      !is.numeric(center_ko_eff) ||
-      !is.finite(center_ko_eff) ||
-      center_ko_eff <= 0 ||
-      center_ko_eff >= 1
+    !is.numeric(center_ko_eff) ||
+    !is.finite(center_ko_eff) ||
+    center_ko_eff <= 0 ||
+    center_ko_eff >= 1
   ) {
-    stop("'center_ko_eff' must be a single finite number between 0 and 1.", call. = FALSE)
+    stop(
+      "'center_ko_eff' must be a single finite number between 0 and 1.",
+      call. = FALSE
+    )
   }
 
   if (
@@ -277,7 +437,10 @@
     stop("'count' and 'Y' must have identical row names.", call. = FALSE)
   }
   if (nrow(count) < 3L) {
-    stop("'count' and 'Y' must contain at least 3 rows for skeleton inference.", call. = FALSE)
+    stop(
+      "'count' and 'Y' must contain at least 3 rows for skeleton inference.",
+      call. = FALSE
+    )
   }
 
   .check_adjacency_matrix(G, nodes = colnames(Y))
@@ -290,12 +453,7 @@
 .check_skeleton_params <- function(
     alpha, min_abspcor, max_order, max_thr, min_n1, min_n2, sepset
 ) {
-  if (
-    length(alpha) != 1L || !is.numeric(alpha) ||
-      !is.finite(alpha) || alpha <= 0 || alpha >= 1
-  ) {
-    stop("'alpha' must be a single finite number between 0 and 1.", call. = FALSE)
-  }
+  .check_alpha(alpha)
   if (
     length(min_abspcor) != 1L || !is.numeric(min_abspcor) ||
       !is.finite(min_abspcor) || min_abspcor < 0 || min_abspcor > 1
@@ -337,17 +495,8 @@
 
 # Check graph and perturbation statistics for causal GRN orientation.
 .check_causalgrn_data <- function(graph, stat) {
-  if (!inherits(graph, "igraph")) {
-    stop("'graph' must be an igraph object.", call. = FALSE)
-  }
-
+  .check_igraph(graph)
   nodes <- igraph::V(graph)$name
-  if (is.null(nodes) || anyNA(nodes) || any(nodes == "")) {
-    stop("'graph' vertices must have non-missing names.", call. = FALSE)
-  }
-  if (anyDuplicated(nodes)) {
-    stop("'graph' vertex names must be unique.", call. = FALSE)
-  }
 
   required_cols <- c("ko", "gene", "adj_pv")
   if (!is.data.frame(stat) || !all(required_cols %in% colnames(stat))) {
@@ -393,12 +542,7 @@
 
 # Check scalar tuning parameters for causal GRN orientation.
 .check_causalgrn_params <- function(alpha, conservative, max_order) {
-  if (
-    length(alpha) != 1L || !is.numeric(alpha) ||
-      !is.finite(alpha) || alpha <= 0 || alpha >= 1
-  ) {
-    stop("'alpha' must be a single finite number between 0 and 1.", call. = FALSE)
-  }
+  .check_alpha(alpha)
   if (
     !is.logical(conservative) || length(conservative) != 1L ||
       is.na(conservative)

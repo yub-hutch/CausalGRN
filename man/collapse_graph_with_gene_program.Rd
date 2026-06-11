@@ -9,9 +9,9 @@ collapse_graph_with_gene_program(graph, pname, pgenes, Y)
 \arguments{
 \item{graph}{igraph object containing the gene program node.}
 
-\item{pname}{Gene program node name.}
+\item{pname}{Name of the gene program node.}
 
-\item{pgenes}{Gene program member genes.}
+\item{pgenes}{Character vector of gene program member genes.}
 
 \item{Y}{scRNA-seq normalized expression matrix with columns matching graph
 vertex names.}

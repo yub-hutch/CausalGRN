@@ -1,117 +1,153 @@
-#' Fit a Two-Stage Portability Prediction Model
+#' Fit Expression Model With Gene Program
 #'
 #' Trains a GRN model and a set of hierarchically inclusive portability models
 #' for all combinations of source datasets.
 #'
 #' @param Y A numeric matrix of expression data for the target dataset.
-#' @param group A character vector for the cell groups in Y.
+#' @param group Named character vector for the cell groups in Y.
 #' @param graph An igraph object for the target dataset.
-#' @param source_effects A named list of data frames with KO effects from source datasets.
-#' @param pname The name of the hub node (e..g., "PC1").
-#' @param pgenes A character vector of the signature genes.
+#' @param source_effects A named list of source-effect data frames. Each list
+#'   name is a source name. Each data frame must contain exactly two columns:
+#'   \code{ko} and a numeric column with the same name as the source. Missing
+#'   source effects should be encoded as \code{NA}.
+#' @param pname Name of the gene program node, such as \code{"PC1"}.
+#' @param pgenes Character vector of gene program member genes.
 #' @param ncores The number of cores for parallel computation.
-#' @param constrain_graph Logical. If TRUE, constrain pgenes to only have pname as a parent before fitting the GRN.
-#' @param alpha Significance level threshold (F-statistic p-value) to determine if a portability model is considered valid.
-#' @return A list containing `B_matrix` and `portability_models`. `portability_models` contains a model for each combination of sources, plus fallback values.
+#' @param alpha Significance level threshold (F-statistic p-value) used to
+#'   determine whether a portability model is valid.
+#' @return A list containing `B_matrix` and `portability_models`.
+#'   `portability_models` contains a model for each combination of sources, plus
+#'   fallback values.
 #' @export
-fit_expression_model_with_gp <- function(
-    Y, group, graph, source_effects, pname, pgenes, ncores,
-    constrain_graph = TRUE,
-    alpha = 0.05
+fit_expression_model_with_gene_program <- function(
+  Y, group, graph, source_effects, pname, pgenes, ncores, alpha = 0.1
 ) {
+  .check_perturbation_effect_inputs(Y = Y, group = group)
+  .check_ncores(ncores)
+  .check_source_effects(source_effects)
+  .check_alpha(alpha)
 
-  all_nodes <- colnames(Y)
-  stopifnot(
-    is.list(source_effects) && !is.data.frame(source_effects),
-    inherits(graph, "igraph"),
-    setequal(all_nodes, igraph::V(graph)$name),
-    !igraph::any_loop(graph),
-    all(c(pname, pgenes) %in% all_nodes)
+  nodes <- colnames(Y)
+  .check_igraph(graph, nodes = nodes)
+  .check_gene_program_nodes(pname = pname, pgenes = pgenes, nodes = nodes)
+
+  # Stage 1: fit the target-dataset expression model.
+  target_B_matrix <- fit_expression_model(
+    Y = Y,
+    group = group,
+    graph = graph,
+    method = 'lm',
+    ncores = ncores
   )
 
-  # Fit the B Matrix for the Target Dataset
-  fit_graph <- if (constrain_graph) {
-    adj_matrix <- as.matrix(igraph::as_adjacency_matrix(graph))
-    adj_matrix[setdiff(rownames(adj_matrix), pname), pgenes] <- 0
-    igraph::graph_from_adjacency_matrix(adj_matrix, mode = 'directed')
-  } else {
-    graph
-  }
-
-  B_matrix <- fit_expression_model(
-    Y = Y, group = group, graph = fit_graph,
-    method = 'lm', ncores = ncores
+  # Stage 2: train portability regressions for the gene program node.
+  portability_models <- .fit_gene_program_portability_models(
+    Y = Y,
+    group = group,
+    source_effects = source_effects,
+    pname = pname,
+    pgenes = pgenes,
+    alpha = alpha
   )
 
-  # Learn the Portability Models (Stage 1 Regressors)
-  training_kos <- setdiff(unique(group), "WT")
-  wt_means_all <- colMeans(Y[group == "WT", , drop = FALSE])
+  return(list(
+    B_matrix = target_B_matrix,
+    portability_models = portability_models
+  ))
+}
 
-  target_effects <- dplyr::tibble(
+
+# Fit portability regressions for predicting target gene program node effects.
+.fit_gene_program_portability_models <- function(
+  Y, group, source_effects, pname, pgenes, alpha
+) {
+  nodes <- colnames(Y)
+  training_kos <- setdiff(unique(group), 'WT')
+  wt_means <- colMeans(Y[group == 'WT', , drop = FALSE])
+
+  # Build the regression response from target data.
+  # Portability response: observed target-dataset effect on the gene program
+  # node only.  Source effects are the model inputs for this single response.
+  target_program_effects <- dplyr::tibble(
     ko = training_kos,
-    target_delta = sapply(training_kos, function(k) {
-      mean(Y[group == k, pname]) - wt_means_all[pname]
-    })
+    target_delta = vapply(
+      training_kos,
+      function(ko) {
+        mean(Y[group == ko, pname]) - wt_means[pname]
+      },
+      FUN.VALUE = numeric(1)
+    )
   )
+
+  # Store fallback deltas for prediction when no valid source model is available.
+  # Fallbacks are empirical target effects from the training KOs.
+  training_ko_delta_matrix <- vapply(
+    training_kos,
+    function(ko) {
+      colMeans(Y[group == ko, , drop = FALSE]) - wt_means
+    },
+    FUN.VALUE = setNames(numeric(length(nodes)), nodes)
+  )
+  mean_training_deltas <- rowMeans(training_ko_delta_matrix, na.rm = TRUE)
 
   source_names <- names(source_effects)
-  portability_models <- list()
-
-  # Calculate and store fallback values
-  portability_models[['fallback_pname_delta']] <- mean(
-    target_effects$target_delta, na.rm = TRUE
+  portability_models <- list(
+    fallback_pname_delta = mean(target_program_effects$target_delta, na.rm = TRUE),
+    fallback_pgenes_deltas = mean_training_deltas[pgenes]
   )
 
-  # Calculate and store mean deltas for pgenes and all genes
-  ko_deltas_all_list <- lapply(training_kos, function(k) {
-    colMeans(Y[group == k, , drop = FALSE]) - wt_means_all
-  })
-  ko_deltas_all_matrix <- do.call(rbind, ko_deltas_all_list)
-  mean_all_gene_deltas <- colMeans(ko_deltas_all_matrix, na.rm = TRUE)
-
-  portability_models[['fallback_pgenes_deltas']] <- mean_all_gene_deltas[pgenes]
-  portability_models[['fallback_all_gene_deltas']] <- mean_all_gene_deltas
-
-  # Create master df starting from target KOs and left-joining source data
-  all_dfs_to_join <- c(list(target_effects), source_effects)
-  training_df_master <- Reduce(
-    function(x, y) dplyr::left_join(x, y, by = "ko"),
-    all_dfs_to_join
+  # Join the response and source effects into one training table keyed by KO.
+  portability_training_df <- Reduce(
+    function(x, y) dplyr::left_join(x, y, by = 'ko'),
+    c(list(target_program_effects), source_effects)
   )
 
-  # Generate all 2^N - 1 combinations
-  all_combos_list <- lapply(1:length(source_names), function(k) {
-    utils::combn(source_names, k, simplify = FALSE)
-  })
-  all_combos <- unlist(all_combos_list, recursive = FALSE)
+  source_combos <- unlist(
+    lapply(seq_along(source_names), function(k) {
+      utils::combn(source_names, k, simplify = FALSE)
+    }),
+    recursive = FALSE
+  )
 
-  for (combo in all_combos) {
-    present_sources <- combo
-    model_name <- paste(sort(present_sources), collapse = "_and_")
+  # Train one model for each non-empty source combination. Prediction later uses
+  # the model matching the sources available for a test KO.
+  for (source_combo in source_combos) {
+    model_name <- paste(sort(source_combo), collapse = "_and_")
 
-    df_combo <- training_df_master[
-      stats::complete.cases(training_df_master[, present_sources, drop = FALSE]),
+    # Use only KOs with complete source-effect values for this source combination.
+    complete_training_df <- portability_training_df[
+      stats::complete.cases(portability_training_df[, source_combo, drop = FALSE]),
       ,
       drop = FALSE
     ]
 
-    if (nrow(df_combo) > length(present_sources)) {
-      formula_combo <- stats::as.formula(
-        paste("target_delta ~", paste(present_sources, collapse = " + "))
+    if (nrow(complete_training_df) > length(source_combo)) {
+      portability_formula <- stats::as.formula(
+        paste('target_delta ~', paste(source_combo, collapse = ' + '))
       )
-      lm_combo <- stats::lm(formula_combo, data = df_combo)
+      portability_fit <- stats::lm(portability_formula, data = complete_training_df)
 
-      s <- summary(lm_combo)
-      fstat <- s$fstatistic
+      fit_summary <- summary(portability_fit)
+      fstat <- fit_summary$fstatistic
       p_value <- stats::pf(fstat[1], fstat[2], fstat[3], lower.tail = FALSE)
       is_significant <- !is.na(p_value) && p_value < alpha
 
-      obs_scale <- stats::sd(df_combo$target_delta)
-      pred_scale <- stats::sd(stats::predict(lm_combo, newdata = df_combo))
-      scale_factor <- ifelse(pred_scale > 1e-6, obs_scale / pred_scale, 1.0)
+      # Linear portability models can get the direction right but shrink or
+      # inflate the magnitude.  Store a scale correction so prediction can match
+      # the observed target-program-node variance in the training KOs.
+      observed_scale <- stats::sd(complete_training_df$target_delta)
+      predicted_scale <- stats::sd(stats::predict(
+        portability_fit,
+        newdata = complete_training_df
+      ))
+      scale_factor <- ifelse(
+        predicted_scale > 1e-6,
+        observed_scale / predicted_scale,
+        1.0
+      )
 
       portability_models[[model_name]] <- list(
-        model = lm_combo,
+        model = portability_fit,
         scale_factor = scale_factor,
         is_significant = is_significant
       )
@@ -124,172 +160,174 @@ fit_expression_model_with_gp <- function(
     }
   }
 
-  return(list(
-    B_matrix = B_matrix,
-    portability_models = portability_models
-  ))
+  return(portability_models)
 }
 
 
-#' Predict Perturbation Effect Using a Two-Stage Portability Model
+#' Predict Perturbation Effect With Gene Program
 #'
 #' Predicts the perturbation effect by matching test KOs to the best-available
 #' pre-trained portability model and propagating the effect.
 #'
 #' @param B A numeric matrix of regulatory coefficients.
 #' @param portability_models A named list of trained models and fallback values.
-#' @param source_effects A named list of data frames with predictor variables.
+#' @param source_effects A named list of source-effect data frames in the same
+#'   format used by \code{\link{fit_expression_model_with_gene_program}}.
 #' @param ko_expressions A named vector of expression levels for the test KOs.
 #' @param wt_expressions A named vector of WT expressions for the target dataset.
-#' @param pname The name of the hub node.
-#' @param pgenes A character vector of the signature genes.
-#' @param graph An igraph object, required if `ancestors_only = TRUE`.
-#' @param scale_pname Logical. If TRUE, apply the stored variance calibration.
-#' @param ancestors_only Logical. If TRUE, only apply portability models to KOs that are ancestors of `pname` in the `graph`.
-#' @param fallback_strategy Character. Action if no source data is found or KO is not an ancestor. One of: "pname_mean_propagate", "pname_zero_propagate", "pgenes_mean_propagate", or "all_genes_mean".
+#' @param pname Name of the gene program node.
+#' @param pgenes Character vector of gene program member genes.
+#' @param scale_pname Logical. If TRUE, apply the stored variance calibration to
+#'   the predicted gene program node effect.
 #' @return A numeric matrix of predicted delta values for the test KOs.
 #' @export
-predict_standard_effect_with_gp <- function(
-    B, portability_models, source_effects,
-    ko_expressions, wt_expressions, pname, pgenes,
-    graph = NULL,
-    scale_pname = TRUE,
-    ancestors_only = FALSE,
-    fallback_strategy = "pname_mean_propagate"
+predict_perturbation_effect_with_gene_program <- function(
+  B, portability_models, source_effects, ko_expressions, wt_expressions,
+  pname, pgenes, scale_pname = TRUE
 ) {
+  # Validate the target expression vectors, fitted GRN model, source effects, and
+  # gene program definition before choosing any portability model.
+  .check_expression_vector(wt_expressions, arg = 'wt_expressions')
+  .check_expression_vector(ko_expressions, arg = 'ko_expressions')
 
   genes <- names(wt_expressions)
   ko_genes <- names(ko_expressions)
-  all_source_names <- names(source_effects)
+
+  .check_expression_model_matrix(B, genes = genes)
+  .check_gene_program_nodes(pname = pname, pgenes = pgenes, nodes = genes)
+  if (!all(ko_genes %in% genes)) {
+    stop(
+      "'ko_expressions' names must be included in 'wt_expressions'.",
+      call. = FALSE
+    )
+  }
+  .check_source_effects(source_effects)
+  if (!is.list(portability_models)) {
+    stop("'portability_models' must be a list.", call. = FALSE)
+  }
+  if (
+    !is.logical(scale_pname) || length(scale_pname) != 1L || is.na(scale_pname)
+  ) {
+    stop("'scale_pname' must be TRUE or FALSE.", call. = FALSE)
+  }
+
   B_propagator <- t(B[genes, , drop = FALSE])
+  all_source_names <- names(source_effects)
 
-  # --- 1. Validate Arguments and Get Fallback Values ---
-  fallback_strategy <- match.arg(
-    fallback_strategy,
-    c("pname_mean_propagate", "pname_zero_propagate",
-      "pgenes_mean_propagate", "all_genes_mean")
-  )
-
+  # Validate fallback values learned during fitting.  These are required when a
+  # KO lacks source effects or its matching portability model is not significant.
   fallback_pname_delta <- portability_models[['fallback_pname_delta']]
-  if (is.null(fallback_pname_delta)) {
-    stop("Corrupted 'portability_models': 'fallback_pname_delta' is missing.")
+  if (
+    !is.numeric(fallback_pname_delta) || length(fallback_pname_delta) != 1L ||
+      !is.finite(fallback_pname_delta)
+  ) {
+    stop(
+      "Corrupted 'portability_models': 'fallback_pname_delta' is missing.",
+      call. = FALSE
+    )
   }
 
   fallback_pgenes_deltas <- portability_models[['fallback_pgenes_deltas']]
-  if (fallback_strategy == "pgenes_mean_propagate") {
-    if (is.null(fallback_pgenes_deltas)) {
-      stop("Corrupted 'portability_models': 'fallback_pgenes_deltas' is missing.")
-    }
-    if (!setequal(pgenes, names(fallback_pgenes_deltas))) {
-      stop("'pgenes' do not match the keys in 'fallback_pgenes_deltas'.")
-    }
+  if (
+    !is.numeric(fallback_pgenes_deltas) ||
+      is.null(names(fallback_pgenes_deltas))
+  ) {
+    stop(
+      "Corrupted 'portability_models': 'fallback_pgenes_deltas' is missing.",
+      call. = FALSE
+    )
+  }
+  if (!setequal(pgenes, names(fallback_pgenes_deltas))) {
+    stop("'pgenes' do not match 'fallback_pgenes_deltas'.", call. = FALSE)
   }
 
-  fallback_all_gene_deltas <- portability_models[['fallback_all_gene_deltas']]
-  if (fallback_strategy == "all_genes_mean") {
-    if (is.null(fallback_all_gene_deltas)) {
-      stop("Corrupted 'portability_models': 'fallback_all_gene_deltas' is missing.")
-    }
-  }
-
-  # --- 2. Pre-calculate Ancestor Status (More Efficient) ---
-  ancestor_map <- NULL
-  if (ancestors_only) {
-    if (!inherits(graph, "igraph")) {
-      stop("'graph' must be a valid igraph object when 'ancestors_only = TRUE'.")
-    }
-    dists <- igraph::distances(graph, v = ko_genes, to = pname, mode = "out")
-    ancestor_map <- setNames(is.finite(dists[, 1]), ko_genes)
-  }
-
-  # --- 3. Loop Through KOs, Predict, and Propagate ---
   pred_delta_list <- lapply(ko_genes, function(ko_gene) {
-
     use_fallback <- FALSE
     predicted_pname_delta <- NA_real_
 
-    # Check ancestor condition if specified
-    if (ancestors_only && !ancestor_map[[ko_gene]]) {
+    # Find which source datasets contain this KO effect.  The model name is the
+    # sorted source combination, matching names created during fitting.
+    available_sources <- all_source_names[vapply(
+      all_source_names,
+      function(source_name) {
+        source_effect <- source_effects[[source_name]]
+        source_value <- source_effect[[source_name]][source_effect$ko == ko_gene]
+        length(source_value) == 1L && !is.na(source_value)
+      },
+      FUN.VALUE = logical(1)
+    )]
+
+    if (length(available_sources) == 0) {
       use_fallback <- TRUE
-    }
+    } else {
+      model_name <- paste(sort(available_sources), collapse = "_and_")
+      model_entry <- portability_models[[model_name]]
 
-    # If not falling back yet, try to find a portability model
-    if (!use_fallback) {
-      available_sources <- c()
-      for (s_name in all_source_names) {
-        if (ko_gene %in% source_effects[[s_name]]$ko && !is.na(source_effects[[s_name]][source_effects[[s_name]]$ko == ko_gene, s_name])) {
-          available_sources <- c(available_sources, s_name)
-        }
-      }
-
-      if (length(available_sources) == 0) {
+      # Use a portability model only if it exists and passed the fit-time
+      # F-test threshold.  Otherwise fall back to target training averages.
+      if (is.null(model_entry) || !isTRUE(model_entry$is_significant)) {
         use_fallback <- TRUE
       } else {
-        model_name <- paste(sort(available_sources), collapse = "_and_")
-        model_entry <- portability_models[[model_name]]
+        # Build the single-row source-effect table for this KO, then predict the
+        # target gene program node delta.
+        ko_data_list <- lapply(available_sources, function(source_name) {
+          dplyr::filter(source_effects[[source_name]], ko == ko_gene)
+        })
+        ko_data <- Reduce(
+          function(x, y) dplyr::full_join(x, y, by = 'ko'),
+          ko_data_list
+        )
 
-        if (is.null(model_entry) || !isTRUE(model_entry$is_significant)) {
-          use_fallback <- TRUE
+        raw_pred <- stats::predict(model_entry$model, newdata = ko_data)
+
+        predicted_pname_delta <- if (scale_pname) {
+          raw_pred * model_entry$scale_factor
         } else {
-          ko_data_list <- lapply(available_sources, function(s_name) {
-            dplyr::filter(source_effects[[s_name]], ko == ko_gene)
-          })
-          ko_data <- Reduce(function(x, y) dplyr::full_join(x, y, by = "ko"), ko_data_list)
-
-          raw_pred <- stats::predict(model_entry$model, newdata = ko_data)
-
-          predicted_pname_delta <- if (scale_pname) {
-            raw_pred * model_entry$scale_factor
-          } else {
-            raw_pred
-          }
+          raw_pred
         }
       }
     }
 
-    # Apply fallback logic
     if (use_fallback) {
-      if (fallback_strategy == "all_genes_mean") {
-        # Option 1: Return average training effect for all genes, skip propagation
-        stopifnot(setequal(names(fallback_all_gene_deltas), genes))
-        return(fallback_all_gene_deltas[genes])
-      } else if (fallback_strategy == "pname_mean_propagate" || fallback_strategy == "pgenes_mean_propagate") {
-        # Option 2 & 3 (pname): Use mean pname delta
-        predicted_pname_delta <- fallback_pname_delta
-      } else { # "pname_zero_propagate"
-        # Option 4: Use zero pname delta
-        predicted_pname_delta <- 0.0
-      }
+      predicted_pname_delta <- fallback_pname_delta
     }
 
-    # Propagate effects through the GRN
-    known_deltas <- c()
+    # Known effects before propagation: the measured KO-gene delta in the target
+    # dataset and the predicted or fallback effect on the gene program node.
+    known_deltas <- numeric(0)
     known_deltas[ko_gene] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
     known_deltas[pname] <- predicted_pname_delta
 
-    # If using pgenes_mean_propagate, set those values *before* imputation
-    if (use_fallback && fallback_strategy == "pgenes_mean_propagate") {
-      # Set pgenes, but NEVER overwrite the ko_gene's own delta
+    # When the program-node effect is a fallback, also anchor member genes to
+    # their target training averages rather than imputing them only from pname.
+    if (use_fallback) {
       pgenes_to_set <- setdiff(pgenes, ko_gene)
       if (length(pgenes_to_set) > 0) {
         known_deltas[pgenes_to_set] <- fallback_pgenes_deltas[pgenes_to_set]
       }
     }
 
-    imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
-    if (length(imputed_deltas) > 0) known_deltas[names(imputed_deltas)] <- imputed_deltas
-
-    stopifnot(
-      "Prediction did not return a value for all genes." =
-        setequal(names(known_deltas), genes),
-      "Prediction resulted in NA values." =
-        !any(is.na(known_deltas))
+    # Propagate the known deltas through the fitted target GRN by solving for the
+    # steady-state deltas of all remaining genes.
+    imputed_deltas <- .impute_deltas(
+      B_propagator = B_propagator,
+      known_deltas = known_deltas
     )
+    if (length(imputed_deltas) > 0) {
+      known_deltas[names(imputed_deltas)] <- imputed_deltas
+    }
+
+    if (!setequal(names(known_deltas), genes)) {
+      stop("Prediction did not return a value for all genes.", call. = FALSE)
+    }
+    if (anyNA(known_deltas)) {
+      stop("Prediction resulted in missing values.", call. = FALSE)
+    }
 
     return(known_deltas[genes])
   })
 
-  # --- 4. Assemble and Return Final Matrix ---
+  # Assemble one predicted delta vector per KO.
   pred_matrix <- do.call(rbind, pred_delta_list)
   rownames(pred_matrix) <- ko_genes
 

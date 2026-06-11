@@ -21,9 +21,9 @@ infer_causalgrn_with_gene_program(
 
 \item{alpha}{Numeric representing DE Q-value threshold.}
 
-\item{pname}{Gene program node name.}
+\item{pname}{Name of the gene program node.}
 
-\item{pgenes}{Gene program member genes.}
+\item{pgenes}{Character vector of gene program member genes.}
 
 \item{conservative}{Logical indicating whether to make conservative inference (Default is \code{TRUE}).}
 

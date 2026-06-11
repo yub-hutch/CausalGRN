@@ -29,9 +29,9 @@ gene program). For example, log1p(total UMI corrected count).}
 
 \item{min_abspcor}{Minimum absolute value of partial correlation for kept edges.}
 
-\item{pname}{Gene program node name in \code{Y}, such as \code{"PC1"}.}
+\item{pname}{Name of the gene program node, such as \code{"PC1"}.}
 
-\item{pgenes}{Gene program member genes in \code{Y}.}
+\item{pgenes}{Character vector of gene program member genes.}
 
 \item{ncores}{Number of CPU cores for parallel processing.}
 

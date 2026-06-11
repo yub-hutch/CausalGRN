@@ -13,27 +13,32 @@
 #' @return A numeric matrix `B` where rows are sources ('Intercept' and genes)
 #'   and columns are targets (genes).
 #' @export
-fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lasso', 'ridge')) {
+fit_expression_model <- function(
+    Y, group, graph, ncores, method = c('lm', 'lasso', 'ridge')
+) {
   .check_perturbation_effect_inputs(Y = Y, group = group)
   .check_ncores(ncores)
 
-  # --- 1. Parameter and Graph Setup ---
   p <- ncol(Y)
   genes <- colnames(Y)
   method <- match.arg(method)
-  if (method != "lm" && !requireNamespace("glmnet", quietly = TRUE)) {
-    stop("Package 'glmnet' must be installed when method is 'lasso' or 'ridge'.", call. = FALSE)
+  if (method != 'lm' && !requireNamespace("glmnet", quietly = TRUE)) {
+    stop(
+      "Package 'glmnet' must be installed when method is 'lasso' or 'ridge'.",
+      call. = FALSE
+    )
   }
 
-  # --- UPDATED: More robust parameter checking ---
   if (inherits(graph, "igraph")) {
-    stopifnot(setequal(genes, igraph::V(graph)$name))
-    stopifnot(!igraph::any_loop(graph))
-  } else {
-    stopifnot(identical(graph, "all"))
+    .check_igraph(graph, nodes = genes)
+  } else if (!identical(graph, 'all')) {
+    stop("'graph' must be an igraph object or the string 'all'.", call. = FALSE)
   }
 
-  message(paste0('Fitting models for ', p, ' genes with ', nrow(Y), ' cells using method: ', method, ' ...'))
+  message(
+    'Fitting models for ', p, ' genes with ', nrow(Y),
+    ' cells using method: ', method, ' ...'
+  )
 
   if (identical(graph, 'all')) {
     adj_matrix <- matrix(TRUE, p, p, dimnames = list(genes, genes))
@@ -41,58 +46,61 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
     graph <- igraph::graph_from_adjacency_matrix(adj_matrix, mode = 'directed')
   }
 
-  # --- 2. Fit Models in Parallel ---
-  model_list <- .parallel_lapply(genes, function(gene) {
-    # Initialize the full coefficient vector for this target gene
-    coef_vector <- setNames(rep(0, p + 1), c('Intercept', genes))
+  model_list <- .parallel_lapply(
+    genes,
+    function(gene) {
+      coef_vector <- setNames(rep(0, p + 1), c('Intercept', genes))
 
-    predictors <- igraph::neighbors(graph, gene, mode = 'in')$name
-    samples <- which(group != gene)
+      predictors <- igraph::neighbors(graph, gene, mode = 'in')$name
+      samples <- which(group != gene)
 
-    if (length(predictors) == 0) {
-      coef_vector['Intercept'] <- mean(Y[samples, gene])
-    } else {
-      # --- BUG FIX: Use explicit assignment with `predictors` to avoid name sanitization issues ---
-      if (length(predictors) == 1 || method == 'lm') {
-        fit <- lm(Y[samples, gene] ~ Y[samples, predictors])
+      if (length(predictors) == 0L) {
+        coef_vector['Intercept'] <- mean(Y[samples, gene])
+        return(coef_vector)
+      }
 
-        if (!any(is.na(stats::coef(fit)))) {
-          # Use the known, correct names for assignment
-          coef_vector[c('Intercept', predictors)] <- stats::coef(fit)
-        } else {
-          warning(paste("lm failed for gene", gene, "- fitting intercept only."))
+      if (length(predictors) == 1L || method == 'lm') {
+        fit <- stats::lm(Y[samples, gene] ~ Y[samples, predictors])
+        fit_coefs <- stats::coef(fit)
+
+        if (anyNA(fit_coefs)) {
+          warning(
+            "lm failed for gene ", gene, " - fitting intercept only.",
+            call. = FALSE
+          )
           coef_vector['Intercept'] <- mean(Y[samples, gene])
+          return(coef_vector)
         }
 
-      } else { # Use glmnet for lasso or ridge
-        alpha_val <- ifelse(method == 'lasso', 1, 0)
-        cvfit <- glmnet::cv.glmnet(
-          x = Y[samples, predictors, drop = FALSE],
-          y = Y[samples, gene],
-          family = "gaussian",
-          nfolds = 5,
-          alpha = alpha_val,
-          intercept = TRUE
-        )
-        fit_coefs <- as.matrix(stats::coef(cvfit, s = "lambda.min"))
-
-        # Use the known, correct names for assignment
-        coef_vector['Intercept'] <- fit_coefs[1, 1]
-        coef_vector[predictors] <- fit_coefs[-1, 1]
+        coef_vector[c('Intercept', predictors)] <- fit_coefs
+        return(coef_vector)
       }
-    }
 
-    return(coef_vector)
-  },
-  ncores = ncores,
-  export = c("Y", "group", "graph", "p", "genes", "method")
+      alpha_val <- if (method == 'lasso') 1 else 0
+      cvfit <- glmnet::cv.glmnet(
+        x = Y[samples, predictors, drop = FALSE],
+        y = Y[samples, gene],
+        family = 'gaussian',
+        nfolds = 5,
+        alpha = alpha_val,
+        intercept = TRUE
+      )
+      fit_coefs <- as.matrix(stats::coef(cvfit, s = 'lambda.min'))
+
+      coef_vector['Intercept'] <- fit_coefs[1, 1]
+      coef_vector[predictors] <- fit_coefs[-1, 1]
+      return(coef_vector)
+    },
+    ncores = ncores,
+    export = c('Y', 'group', 'graph', 'p', 'genes', 'method')
   )
 
-  # --- 3. Assemble and Return the Final B Matrix ---
   B <- do.call(cbind, model_list)
   colnames(B) <- genes
 
-  stopifnot(!any(is.na(B)))
+  if (any(is.na(B))) {
+    stop("Fitted coefficient matrix contains missing values.", call. = FALSE)
+  }
   return(B)
 }
 
@@ -109,7 +117,9 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
 .impute_deltas <- function(B_propagator, known_deltas) {
   genes <- rownames(B_propagator)
   unknown_genes <- setdiff(genes, names(known_deltas))
-  if (length(unknown_genes) == 0) return(numeric(0))
+  if (length(unknown_genes) == 0) {
+    return(numeric(0))
+  }
 
   B_UU <- B_propagator[unknown_genes, unknown_genes, drop = FALSE]
 
@@ -119,10 +129,14 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
     warning("System may be unstable (max |eigenvalue| >= 1 - epsilon).")
   }
 
-  driving_force <- B_propagator[unknown_genes, names(known_deltas), drop = FALSE] %*% known_deltas
+  driving_force <- B_propagator[
+    unknown_genes,
+    names(known_deltas),
+    drop = FALSE
+  ] %*% known_deltas
   I_minus_B_UU <- diag(length(unknown_genes)) - B_UU
   imputed <- base::solve(I_minus_B_UU, driving_force)
-  return(imputed[,1])
+  return(imputed[, 1])
 }
 
 
@@ -231,16 +245,22 @@ fit_expression_model <- function(Y, group, graph, ncores, method = c('lm', 'lass
 #' print(pred_effects)
 #' @return A numeric matrix of predicted delta values (KOs x genes).
 #' @export
-predict_perturbation_effect <- function(B, ko_expressions, wt_expressions, max_dist = Inf) {
-  # --- 1. Input Validation and Setup ---
+predict_perturbation_effect <- function(
+    B, ko_expressions, wt_expressions, max_dist = Inf
+) {
+  .check_expression_vector(wt_expressions, arg = 'wt_expressions')
+  .check_expression_vector(ko_expressions, arg = 'ko_expressions')
+
   genes <- names(wt_expressions)
   ko_genes <- names(ko_expressions)
-  stopifnot(
-    is.matrix(B), is.numeric(wt_expressions), is.numeric(ko_expressions),
-    identical(colnames(B), genes),
-    identical(rownames(B), c('Intercept', genes)),
-    all(ko_genes %in% genes)
-  )
+
+  .check_expression_model_matrix(B, genes = genes)
+  if (!all(ko_genes %in% genes)) {
+    stop(
+      "'ko_expressions' names must be included in 'wt_expressions'.",
+      call. = FALSE
+    )
+  }
   if (
     length(max_dist) != 1L || !is.numeric(max_dist) ||
       is.na(max_dist) || max_dist < 0
@@ -248,31 +268,43 @@ predict_perturbation_effect <- function(B, ko_expressions, wt_expressions, max_d
     stop("'max_dist' must be a single non-negative number or Inf.", call. = FALSE)
   }
 
-  # --- 2. Prepare B Matrix and Functional Graph ---
   B_propagator <- t(B[genes, , drop = FALSE])
   adj_matrix_functional <- t(B_propagator != 0)
-  graph_for_distances <- igraph::graph_from_adjacency_matrix(adj_matrix_functional, mode = 'directed')
+  graph_for_distances <- igraph::graph_from_adjacency_matrix(
+    adj_matrix_functional,
+    mode = 'directed'
+  )
 
-  # --- 3. Main Prediction Loop ---
   pred_delta_list <- lapply(ko_genes, function(ko_gene) {
+    distances <- igraph::distances(
+      graph_for_distances,
+      v = ko_gene,
+      mode = 'out'
+    )[1, ]
+    unchanged_genes <- names(which(
+      is.infinite(distances) | distances > max_dist
+    ))
 
-    distances <- igraph::distances(graph_for_distances, v = ko_gene, mode = 'out')[1, ]
-    unchanged_genes <- names(which(is.infinite(distances) | distances > max_dist))
-
-    known_deltas <- c()
+    known_deltas <- numeric(0)
     known_deltas[ko_gene] <- ko_expressions[ko_gene] - wt_expressions[ko_gene]
     known_deltas[unchanged_genes] <- 0
 
-    imputed_deltas <- .impute_deltas(B_propagator = B_propagator, known_deltas = known_deltas)
-    if (length(imputed_deltas) > 0) known_deltas[names(imputed_deltas)] <- imputed_deltas
-    stopifnot(
-      length(known_deltas) == length(genes),
-      setequal(names(known_deltas), genes)
+    imputed_deltas <- .impute_deltas(
+      B_propagator = B_propagator,
+      known_deltas = known_deltas
     )
+    if (length(imputed_deltas) > 0) {
+      known_deltas[names(imputed_deltas)] <- imputed_deltas
+    }
+    if (
+      length(known_deltas) != length(genes) ||
+        !setequal(names(known_deltas), genes)
+    ) {
+      stop("Prediction did not return a value for all genes.", call. = FALSE)
+    }
     return(known_deltas[genes])
   })
 
-  # --- 4. Assemble and Return Final Matrix ---
   pred_matrix <- do.call(rbind, pred_delta_list)
   rownames(pred_matrix) <- ko_genes
 

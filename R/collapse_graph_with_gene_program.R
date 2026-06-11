@@ -4,24 +4,22 @@
 #' all member genes, then removes the gene program node.
 #'
 #' @param graph igraph object containing the gene program node.
-#' @param pname Gene program node name.
-#' @param pgenes Gene program member genes.
+#' @param pname Name of the gene program node.
+#' @param pgenes Character vector of gene program member genes.
 #' @param Y scRNA-seq normalized expression matrix with columns matching graph
 #' vertex names.
 #'
 #' @return igraph object.
 #' @export
 collapse_graph_with_gene_program <- function(graph, pname, pgenes, Y) {
-  stopifnot(inherits(graph, "igraph"))
+  .check_igraph(graph)
+  .check_expression_matrix(Y)
+
   nodes <- igraph::V(graph)$name
-  genes <- setdiff(nodes, pname)
-  stopifnot(
-    length(pname) == 1L,
-    pname %in% nodes,
-    is.character(pgenes),
-    all(pgenes %in% genes),
-    all(nodes %in% colnames(Y))
-  )
+  .check_gene_program_nodes(pname = pname, pgenes = pgenes, nodes = nodes)
+  if (!all(nodes %in% colnames(Y))) {
+    stop("'Y' must contain all graph vertices as columns.", call. = FALSE)
+  }
 
   # Convert g -> program to g -> all program genes
   gs <- igraph::neighbors(graph, pname, mode = 'in')$name

@@ -9,12 +9,7 @@
 #' @export
 run_pc <- function(wt, alpha, ncores = 1) {
   .check_expression_matrix(wt, arg = "wt")
-  if (
-    length(alpha) != 1L || !is.numeric(alpha) ||
-      is.na(alpha) || !is.finite(alpha) || alpha <= 0 || alpha >= 1
-  ) {
-    stop("'alpha' must be a single finite number between 0 and 1.", call. = FALSE)
-  }
+  .check_alpha(alpha)
   .check_ncores(ncores)
 
   # Fit

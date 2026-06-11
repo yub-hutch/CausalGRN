@@ -7,8 +7,8 @@
 #' @param graph Initial igraph object.
 #' @param stat Perturbation effect from \code{\link{calc_perturbation_effect}}.
 #' @param alpha Numeric representing DE Q-value threshold.
-#' @param pname Gene program node name.
-#' @param pgenes Gene program member genes.
+#' @param pname Name of the gene program node.
+#' @param pgenes Character vector of gene program member genes.
 #' @param conservative Logical indicating whether to make conservative inference
 #' (Default is \code{TRUE}).
 #' @param max_order Integer representing the maximum order for DE descendant
@@ -27,13 +27,7 @@ infer_causalgrn_with_gene_program <- function(
   )
 
   nodes <- igraph::V(graph)$name
-  genes <- setdiff(nodes, pname)
-  stopifnot(
-    length(pname) == 1L,
-    pname %in% nodes,
-    is.character(pgenes),
-    all(pgenes %in% genes)
-  )
+  .check_gene_program_nodes(pname = pname, pgenes = pgenes, nodes = nodes)
 
   kos <- unique(stat$ko)
 

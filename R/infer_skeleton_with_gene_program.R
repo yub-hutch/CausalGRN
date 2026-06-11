@@ -9,8 +9,8 @@
 #' @param Y scRNA-seq normalized expression matrix (cells × nodes, including
 #' gene program). For example, log1p(total UMI corrected count).
 #' @param alpha Significance level for CI tests.
-#' @param pname Gene program node name in \code{Y}, such as \code{"PC1"}.
-#' @param pgenes Gene program member genes in \code{Y}.
+#' @param pname Name of the gene program node, such as \code{"PC1"}.
+#' @param pgenes Character vector of gene program member genes.
 #' @param min_abspcor Minimum absolute value of partial correlation for kept edges.
 #' @param ncores Number of CPU cores for parallel processing.
 #' @param G Optional initial adjacency matrix (defaults to a fully connected
@@ -29,13 +29,7 @@ infer_skeleton_with_gene_program <- function(
     max_order = 1, max_thr = 10, min_n1 = 1000, min_n2 = 200
 ) {
   nodes <- colnames(Y)
-  genes <- setdiff(nodes, pname)
-  stopifnot(
-    length(pname) == 1L,
-    pname %in% nodes,
-    is.character(pgenes),
-    all(pgenes %in% genes)
-  )
+  .check_gene_program_nodes(pname = pname, pgenes = pgenes, nodes = nodes)
 
   graph <- infer_skeleton(
     count = count,

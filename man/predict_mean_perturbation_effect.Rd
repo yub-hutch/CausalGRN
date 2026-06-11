@@ -4,7 +4,7 @@
 \alias{predict_mean_perturbation_effect}
 \title{Predict KO Effect Using the Mean Perturbation Effect Baseline}
 \usage{
-predict_mean_perturbation_effect(Y, group, train_kos, test_kos, wt_name = "WT")
+predict_mean_perturbation_effect(Y, group, train_kos, test_kos)
 }
 \arguments{
 \item{Y}{A numeric matrix of expression data (cells x genes).}
@@ -15,8 +15,6 @@ perturbed gene for perturbed cell.}
 \item{train_kos}{A character vector of the training knockout group names.}
 
 \item{test_kos}{A character vector of the test knockout group names.}
-
-\item{wt_name}{A character string specifying the wild-type group name (default is "WT").}
 }
 \value{
 A numeric matrix of predicted delta values (rows are test KOs, columns are genes).
