@@ -221,6 +221,11 @@ predict_perturbation_effect_with_gene_program <- function(
   model_selection <- match.arg(model_selection)
 
   B_propagator <- t(B[genes, , drop = FALSE])
+  adj_matrix_functional <- t(B_propagator != 0)
+  graph_for_distances <- igraph::graph_from_adjacency_matrix(
+    adj_matrix_functional,
+    mode = 'directed'
+  )
   all_source_names <- names(source_effects)
 
   # Validate fallback values learned during fitting.  These are required when a
@@ -374,6 +379,14 @@ predict_perturbation_effect_with_gene_program <- function(
         known_deltas[pgenes_to_set] <- fallback_pgenes_deltas[pgenes_to_set]
       }
     }
+
+    distances <- igraph::distances(
+      graph_for_distances,
+      v = names(known_deltas),
+      mode = 'out'
+    )
+    unreachable_genes <- names(which(colSums(is.finite(distances)) == 0L))
+    known_deltas[unreachable_genes] <- 0
 
     # Propagate the known deltas through the fitted target GRN by solving for the
     # steady-state deltas of all remaining genes.

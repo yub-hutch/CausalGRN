@@ -50,8 +50,8 @@
 }
 
 
-# Check group labels.
-.check_group <- function(group, min_cells = NULL) {
+# Check group labels, with optional WT requirement for training data.
+.check_group <- function(group, min_cells = NULL, require_wt = TRUE) {
   if (!is.character(group) || !is.null(dim(group))) {
     stop("'group' must be a character vector.", call. = FALSE)
   }
@@ -68,7 +68,12 @@
   if (any(is.na(group) | group == "")) {
     stop("'group' must not contain missing or empty labels.", call. = FALSE)
   }
-  if (!"WT" %in% group) {
+  if (
+    !is.logical(require_wt) || length(require_wt) != 1L || is.na(require_wt)
+  ) {
+    stop("'require_wt' must be TRUE or FALSE.", call. = FALSE)
+  }
+  if (require_wt && !"WT" %in% group) {
     stop("'group' must contain wild-type cells labeled as 'WT'.", call. = FALSE)
   }
   if (!is.null(min_cells)) {

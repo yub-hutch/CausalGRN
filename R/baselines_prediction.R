@@ -72,7 +72,7 @@ predict_mean_perturbation_effect <- function(
 #' @param Y A numeric matrix of expression data (cells x genes) for which to make
 #'   predictions.
 #' @param group Named character vector indicating the group for each cell in
-#'   \code{Y}.
+#'   \code{Y}. Wild-type cells are not required for oracle prediction.
 #' @param wt_expressions A named numeric vector of the wild-type expression
 #'   levels for each gene.
 #' @return A numeric matrix of predicted delta values (rows are unique KOs,
@@ -90,7 +90,7 @@ predict_oracle_perturbation_effect <- function(
     arg = 'wt_expressions',
     expected_names = genes
   )
-  .check_group(group)
+  .check_group(group, require_wt = FALSE)
   if (length(group) != nrow(Y)) {
     stop("'group' must have one label per row of 'Y'.", call. = FALSE)
   }
