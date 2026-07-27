@@ -5,3 +5,5 @@
 ^LICENSE\.md$
 ^CausalGRN\.Rcheck$
 ^\.Rprofile$
+^tutorials$
+^manuscript$

@@ -1,0 +1,584 @@
+---
+title: "Real-data workflow: RPE1 Perturb-seq"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center"
+)
+```
+
+# Overview and scope
+
+This tutorial runs CausalGRN on a prepared subset of the RPE1 Perturb-seq
+dataset. It shows one complete application workflow:
+
+1. infer a causal gene regulatory network (GRN) that includes a transcriptional
+   program node;
+2. fit the perturbation-effect prediction model;
+3. predict expression changes after setting three target genes to specified
+   expression levels; and
+4. evaluate how accurately the predictions rank held-out differentially
+   expressed genes (DEGs).
+
+The companion
+[manuscript-code repository](https://github.com/yub-hutch/CausalGRN-manuscript-code)
+provides the broader cross-validation and method-comparison analyses.
+
+The example takes approximately 15 minutes with 10 CPU cores and used about
+18 GB of memory in our test.
+
+```{r install, eval = FALSE}
+# Run once if CausalGRN is not installed.
+devtools::install_github("yub-hutch/CausalGRN")
+```
+
+```{r packages}
+library(CausalGRN)
+library(dplyr)
+library(ggplot2)
+library(igraph)
+```
+
+# Prepare the RPE1 inputs
+
+## Data sources and preprocessing
+
+The RPE1 data and the K562 source-context summaries originate from the
+[processed Perturb-seq data of Replogle and
+Weissman](https://doi.org/10.25452/figshare.plus.20029387). The HCT116
+source-context summaries originate from
+[X-Atlas/Orion](https://doi.org/10.25452/figshare.plus.29190726.v1).
+
+The deposited tutorial file provides processed inputs ready for CausalGRN. The
+Replogle release normalizes expression within experimental gem groups to
+address batch effects. Our subsequent preparation filters cells and genes and
+regresses dataset-specific technical covariates from normalized expression. In
+another dataset, the appropriate covariates may differ; the general requirement
+is to remove known technical and confounding effects, including batch effects,
+before CausalGRN analysis.
+
+The
+[manuscript-code repository](https://github.com/yub-hutch/CausalGRN-manuscript-code)
+documents the dataset-specific regression models and complete processing steps.
+This tutorial starts from their prepared outputs and focuses on the executable
+CausalGRN workflow.
+
+## Gene-program input
+
+RPE1 contains a dominant perturbation-response program. The companion
+preprocessing workflow identifies this program and defines its member genes.
+The deposited tutorial data provide the resulting program node and
+`program_genes` input.
+
+For a new dataset, users should inspect the perturbation responses for
+influential programs. When a program is present, define its member genes and
+include it in the network with the gene-program functions used below. When no
+influential program is present, use `infer_skeleton()`, `infer_causalgrn()`,
+`fit_expression_model()`, and `predict_perturbation_effect()` as shown in the
+quick-start tutorial.
+
+## Reference source effects
+
+When reference Perturb-seq datasets are available, first score their cells
+using the same program definition as the target dataset. For source dataset
+\(s\) and perturbation \(g\), summarize the source effect as
+
+\[
+\Delta_{s,g} =
+\operatorname{mean}(\text{program score}\mid \text{perturbation }g) -
+\operatorname{mean}(\text{program score}\mid \text{WT}).
+\]
+
+Each source is supplied as a data frame with a `ko` column and one numeric
+effect column named after that source. The `source_effects` input is a named
+list of these data frames. The
+[manuscript-code repository](https://github.com/yub-hutch/CausalGRN-manuscript-code)
+provides the complete program-scoring and source-effect preparation scripts.
+
+## Download and inspect the tutorial data
+
+The file is hosted in the public
+[CausalGRN tutorial-data project](https://osf.io/zu7dn/). The checksum prevents
+the workflow from silently using a different file.
+
+```{r download-data}
+data_url <- "https://osf.io/download/6a66cab03059ac3f76135bfb/"
+data_file <- file.path("data", "rpe1-tutorial-data.rds")
+expected_md5 <- "aa57b50b5885cf21d713f8ce3bf5130e"
+
+if (!file.exists(data_file)) {
+  dir.create(dirname(data_file), recursive = TRUE, showWarnings = FALSE)
+  download.file(
+    url = data_url,
+    destfile = data_file,
+    mode = "wb"
+  )
+}
+
+actual_md5 <- unname(tools::md5sum(data_file))
+stopifnot(identical(actual_md5, expected_md5))
+
+tutorial_data <- readRDS(data_file)
+```
+
+The object is a named list:
+
+- `count`: prepared cell-by-node counts used for skeleton inference;
+- `Y`: adjusted cell-by-node expression, including the program score;
+- `group`: one perturbation label per cell, with `"WT"` denoting the reference
+  cells;
+- `program_genes`: member genes of the transcriptional program;
+- `source_effects`: K562 and HCT116 effects on the RPE1-defined program score,
+  used to model how program effects transfer across contexts; and
+- `heldout_deg`: observed DEG labels reserved for evaluating the three
+  prediction targets.
+
+```{r inspect-data}
+count <- tutorial_data$count
+Y <- tutorial_data$Y
+group <- tutorial_data$group
+program_genes <- tutorial_data$program_genes
+source_effects <- tutorial_data$source_effects
+heldout_deg <- tutorial_data$heldout_deg
+
+targets <- c("GPS1", "SRP72", "SRSF7")
+program_name <- "PC1"
+ncores <- 10L
+
+stopifnot(
+  identical(dim(count), dim(Y)),
+  identical(rownames(count), names(group)),
+  identical(rownames(Y), names(group)),
+  identical(colnames(count), colnames(Y)),
+  all(program_genes %in% colnames(Y)),
+  all(targets %in% colnames(Y)),
+  !any(group %in% targets),
+  identical(rownames(heldout_deg), targets),
+  identical(colnames(heldout_deg), setdiff(colnames(Y), program_name)),
+  is.logical(heldout_deg),
+  all(rowSums(heldout_deg) > 0)
+)
+
+data.frame(
+  cells = nrow(Y),
+  nodes = ncol(Y),
+  perturbation_groups = length(unique(group)),
+  WT_cells = sum(group == "WT"),
+  program_genes = length(program_genes)
+)
+```
+
+Network inference and model fitting use WT cells and perturbations other than
+the three prediction targets. The observed RPE1 outcomes for these targets are
+reserved for the evaluation in the final section.
+
+# Infer the causal GRN
+
+## Infer the graph skeleton
+
+`infer_skeleton_with_gene_program()` tests marginal and order-one conditional
+independence among the input nodes. The arguments used here are:
+
+- `count = count`: raw counts used by the sparsity-aware conditional-
+  independence tests;
+- `Y = Y`: adjusted expression used to calculate correlations and partial
+  correlations;
+- `alpha = 0.05`: the significance threshold for the conditional-independence
+  tests;
+- `min_abspcor = 0.02`: the minimum absolute partial correlation required to
+  retain an edge;
+- `pname = program_name`: the name of the program node;
+- `pgenes = program_genes`: the member genes that must be connected to the
+  program node in the skeleton; and
+- `ncores = ncores`: the number of CPU cores used in parallel calculations.
+
+The function returns the skeleton as an `igraph` object.
+
+```{r infer-skeleton}
+skeleton <- infer_skeleton_with_gene_program(
+  count = count,
+  Y = Y,
+  alpha = 0.05,
+  min_abspcor = 0.02,
+  pname = program_name,
+  pgenes = program_genes,
+  ncores = ncores
+)
+
+data.frame(
+  nodes = igraph::vcount(skeleton),
+  edge_entries = igraph::ecount(skeleton)
+)
+```
+
+## Estimate observed perturbation effects
+
+`calc_perturbation_effect()` compares each observed perturbation group with WT
+for every node:
+
+- `Y = Y` supplies the adjusted expression values;
+- `group = group` identifies the WT and perturbed cells and is aligned with the
+  rows of `Y`; and
+- `ncores = ncores` controls parallel calculation.
+
+The returned table reports the WT-to-perturbation mean difference (`diff`),
+Cohen's d (`cd`), test results, and adjusted p-values for every
+perturbation-node pair. `adj_pv` is the larger of the adjusted Wilcoxon and
+t-test p-values and is used for graph orientation.
+
+```{r estimate-effects}
+perturbation_stat <- calc_perturbation_effect(
+  Y = Y,
+  group = group,
+  ncores = ncores
+)
+
+head(
+  perturbation_stat[, c("ko", "gene", "diff", "cd", "adj_pv")]
+)
+```
+
+## Orient the skeleton
+
+`infer_causalgrn_with_gene_program()` uses significant observed perturbation
+effects to direct the skeleton:
+
+- `graph = skeleton` supplies the graph to orient;
+- `stat = perturbation_stat` supplies the observed effects;
+- `alpha = 0.05` is the significance threshold applied to `stat$adj_pv`;
+- `pname = program_name` and `pgenes = program_genes` identify the program node
+  and its member genes; and
+- `conservative = TRUE` retains both possible directions unless the
+  perturbation evidence supports one direction.
+
+The function returns an `igraph` object. A single `from`-to-`to` row is an
+oriented edge; reciprocal rows indicate that the direction remains unresolved.
+
+```{r orient-skeleton}
+causal_graph <- infer_causalgrn_with_gene_program(
+  graph = skeleton,
+  stat = perturbation_stat,
+  alpha = 0.05,
+  pname = program_name,
+  pgenes = program_genes,
+  conservative = TRUE
+)
+
+data.frame(
+  nodes = igraph::vcount(causal_graph),
+  edge_entries = igraph::ecount(causal_graph)
+)
+
+edge_table <- igraph::as_data_frame(causal_graph, what = "edges")
+edge_table <- edge_table[
+  order(edge_table$from, edge_table$to),
+  c("from", "to", "absPcorMin")
+]
+knitr::kable(head(edge_table, 10), digits = 3)
+```
+
+# Fit the perturbation-effect models
+
+## Fit using reference source effects
+
+`fit_expression_model_with_gene_program()` fits two linked model components:
+
+1. one linear expression model per node, using its incoming GRN neighbors as
+   predictors and cells in which that modeled node is unperturbed; and
+2. portability regressions that relate source-context effects on the
+   RPE1-defined program to its observed RPE1 effects across perturbations
+   available during fitting.
+
+Its arguments are:
+
+- `Y = Y`, `group = group`, and `graph = causal_graph`: the RPE1 expression,
+  perturbation labels, and inferred GRN;
+- `source_effects = source_effects`: the prepared K562 and HCT116 effects on
+  the RPE1-defined program score;
+- `pname = program_name` and `pgenes = program_genes`: the program definition;
+- `ncores = ncores`: the number of CPU cores used to fit node-level models; and
+- `alpha = 0.1`: the F-test significance threshold for accepting a portability
+  regression.
+
+The result contains `B_matrix`, whose rows are predictors and columns are
+modeled nodes, and `portability_models`, which are used to predict the RPE1
+program-node effect for a new perturbation.
+
+```{r fit-model}
+expression_model <- fit_expression_model_with_gene_program(
+  Y = Y,
+  group = group,
+  graph = causal_graph,
+  source_effects = source_effects,
+  pname = program_name,
+  pgenes = program_genes,
+  ncores = ncores,
+  alpha = 0.1
+)
+
+data.frame(
+  coefficient_rows = nrow(expression_model$B_matrix),
+  modeled_nodes = ncol(expression_model$B_matrix)
+)
+```
+
+## Fit when reference source effects are unavailable
+
+When the target dataset contains an influential program but suitable reference
+source effects are unavailable, `fit_expression_model()` can fit the same
+program-containing graph directly from the target dataset. `Y = Y`,
+`group = group`, and `graph = causal_graph` supply the adjusted expression,
+perturbation labels, and inferred graph; `ncores = ncores` controls parallel
+model fitting. The function returns the regulatory coefficient matrix.
+
+```{r fit-model-without-source-effects}
+expression_model_without_source <- fit_expression_model(
+  Y = Y,
+  group = group,
+  graph = causal_graph,
+  ncores = ncores
+)
+
+dim(expression_model_without_source)
+```
+
+# Predict effects at specified intervention expression levels
+
+## Specify the intervention levels
+
+An **intervention expression level** is the value imposed on a target gene for
+prediction: "What expression changes would follow if this gene were set to this
+level?" Users choose this input before observing the downstream response.
+
+For illustration, each target is set to the first percentile of its expression
+among the RPE1 WT cells. Users can replace these values with other experimentally
+meaningful levels.
+
+```{r intervention-levels}
+wt_expressions <- colMeans(Y[group == "WT", , drop = FALSE])
+
+intervention_expressions <- vapply(
+  targets,
+  function(target) {
+    unname(stats::quantile(
+      Y[group == "WT", target],
+      probs = 0.01
+    ))
+  },
+  FUN.VALUE = numeric(1)
+)
+
+knitr::kable(
+  data.frame(
+    target = targets,
+    WT_mean = unname(wt_expressions[targets]),
+    intervention_expression_level = unname(intervention_expressions)
+  ),
+  digits = 3
+)
+```
+
+## Predict using reference source effects
+
+`predict_perturbation_effect_with_gene_program()` first converts each specified
+target level to a change from its WT mean, predicts the accompanying RPE1
+program-node change from the reference source effects, and propagates those
+known changes through the fitted RPE1 model.
+
+- `B = expression_model$B_matrix` supplies the fitted regulatory coefficients;
+- `portability_models = expression_model$portability_models` supplies the
+  fitted cross-context program-effect models;
+- `source_effects = source_effects` supplies the K562 and HCT116 program effects
+  for the prediction targets;
+- `ko_expressions = intervention_expressions` supplies the specified target
+  expression levels;
+- `wt_expressions = wt_expressions` supplies the RPE1 WT reference means; and
+- `pname = program_name` and `pgenes = program_genes` supply the program
+  definition.
+
+The returned matrix contains predicted expression changes from WT, with one
+target per row and one modeled node per column.
+
+```{r predict-effects}
+predicted_effects <- predict_perturbation_effect_with_gene_program(
+  B = expression_model$B_matrix,
+  portability_models = expression_model$portability_models,
+  source_effects = source_effects,
+  ko_expressions = intervention_expressions,
+  wt_expressions = wt_expressions,
+  pname = program_name,
+  pgenes = program_genes
+)
+
+dim(predicted_effects)
+```
+
+## Predict without reference source effects
+
+`predict_perturbation_effect()` uses the target-dataset coefficient matrix to
+propagate each specified intervention through the inferred graph, including
+the program node. `B = expression_model_without_source` supplies the fitted
+coefficients, `ko_expressions = intervention_expressions` supplies the
+specified target levels, and `wt_expressions = wt_expressions` supplies the WT
+reference means.
+
+```{r predict-without-source-effects}
+predicted_effects_without_source <- predict_perturbation_effect(
+  B = expression_model_without_source,
+  ko_expressions = intervention_expressions,
+  wt_expressions = wt_expressions
+)
+
+dim(predicted_effects_without_source)
+```
+
+## Inspect the strongest predicted effects
+
+The figure reports the five strongest predicted decreases and increases among
+individual downstream genes for each intervention target.
+
+```{r strongest-effects, fig.width = 9.5, fig.height = 4.8, fig.cap = "Five strongest predicted decreases and increases for each intervention target."}
+prediction_table <- as.data.frame(
+  as.table(predicted_effects),
+  responseName = "predicted_change"
+)
+names(prediction_table)[1:2] <- c("target", "gene")
+prediction_table$target <- as.character(prediction_table$target)
+prediction_table$gene <- as.character(prediction_table$gene)
+prediction_table <- prediction_table[
+  prediction_table$gene != program_name &
+    prediction_table$gene != prediction_table$target,
+]
+
+strongest_decreases <- prediction_table |>
+  group_by(target) |>
+  slice_min(
+    order_by = predicted_change,
+    n = 5,
+    with_ties = FALSE
+  ) |>
+  mutate(direction = "Decrease")
+
+strongest_increases <- prediction_table |>
+  group_by(target) |>
+  slice_max(
+    order_by = predicted_change,
+    n = 5,
+    with_ties = FALSE
+  ) |>
+  mutate(direction = "Increase")
+
+strongest_effects <- bind_rows(
+  strongest_decreases,
+  strongest_increases
+) |>
+  ungroup() |>
+  arrange(target, predicted_change)
+
+strongest_effects$plot_label <- factor(
+  paste(strongest_effects$target, strongest_effects$gene, sep = "___"),
+  levels = unique(
+    paste(strongest_effects$target, strongest_effects$gene, sep = "___")
+  )
+)
+
+ggplot(
+  strongest_effects,
+  aes(
+    x = predicted_change,
+    y = plot_label,
+    fill = direction
+  )
+) +
+  geom_vline(xintercept = 0, color = "grey60", linewidth = 0.4) +
+  geom_col(width = 0.75) +
+  facet_wrap(~target, scales = "free_y") +
+  scale_y_discrete(labels = function(x) sub(".*___", "", x)) +
+  scale_fill_manual(
+    values = c("Decrease" = "#377EB8", "Increase" = "#E41A1C")
+  ) +
+  labs(
+    x = "Predicted expression change from WT",
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    panel.grid.major.y = element_blank()
+  )
+```
+
+# Evaluate held-out DEG ranking
+
+The full RPE1 dataset supplies observed differential-expression labels for
+GPS1, SRP72, and SRSF7. A gene is labeled as a DEG when
+`calc_perturbation_effect()` applied to the full dataset gives
+`adj_pv < 0.05`. These labels are used here after model fitting.
+
+For each target, genes are ranked by the absolute predicted expression change
+from the source-aware model. Each curve shows the proportion of held-out DEGs
+among the top \(N\) ranked genes. The dashed line gives the DEG prevalence
+expected under random ranking. Each curve extends through the observed number
+of DEGs for that target.
+
+```{r evaluate-deg-ranking, fig.width = 9.5, fig.height = 3.8, fig.cap = "Precision of held-out DEG recovery as genes are ranked by absolute predicted expression change. Dashed lines show DEG prevalence."}
+precision_curves <- do.call(
+  rbind,
+  lapply(targets, function(target) {
+    genes <- setdiff(
+      intersect(colnames(predicted_effects), colnames(heldout_deg)),
+      target
+    )
+    ranked_genes <- genes[
+      order(abs(predicted_effects[target, genes]), decreasing = TRUE)
+    ]
+    is_deg <- heldout_deg[target, ranked_genes]
+    top_n <- seq_len(sum(is_deg))
+
+    data.frame(
+      target = target,
+      top_n = top_n,
+      precision = cumsum(is_deg)[top_n] / top_n,
+      DEG_prevalence = mean(is_deg)
+    )
+  })
+)
+
+precision_baselines <- unique(
+  precision_curves[, c("target", "DEG_prevalence")]
+)
+
+ggplot(
+  precision_curves,
+  aes(x = top_n, y = precision)
+) +
+  geom_hline(
+    data = precision_baselines,
+    aes(yintercept = DEG_prevalence),
+    linetype = "dashed",
+    color = "grey50"
+  ) +
+  geom_line(linewidth = 0.7) +
+  facet_wrap(~target, nrow = 1, scales = "free_x") +
+  coord_cartesian(ylim = c(0, 1)) +
+  labs(
+    x = "Top N genes ranked by absolute predicted change",
+    y = "Held-out DEG precision"
+  ) +
+  theme_bw()
+```
+
+The
+[manuscript-code repository](https://github.com/yub-hutch/CausalGRN-manuscript-code)
+provides the dataset-wide cross-validation analysis.

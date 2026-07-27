@@ -1,0 +1,113 @@
+---
+title: "GRN-scPerturbSim: simulate single-cell perturbation data"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+# Overview
+
+GRN-scPerturbSim generates single-cell perturbation count data under a
+synthetic gene regulatory network (GRN). The
+`simulate_grn_guided_expression()` function uses a supplied count matrix and
+cell-group labels as a reference for the simulated data.
+
+This tutorial first creates a small artificial dataset and uses it as the
+reference input. When applying the simulator, replace this illustrative input
+with your experimental single-cell perturbation data.
+
+# Create illustrative reference input
+
+The reference input contains 10 genes and three groups: wild-type cells and
+cells in which `Gene1` or `Gene2` is perturbed. The Poisson counts below serve
+only as a compact, executable illustration of the required input structure.
+
+```{r create-reference-input}
+library(CausalGRN)
+
+set.seed(seed = 42)
+
+n_genes <- 10
+n_cells_per_group <- 50
+genes <- paste0("Gene", seq_len(n_genes))
+perturbed_genes <- c("Gene1", "Gene2")
+groups <- c("WT", perturbed_genes)
+n_groups <- length(groups)
+
+count_real_data <- matrix(
+  data = rpois(
+    n = n_groups * n_cells_per_group * n_genes,
+    lambda = 10
+  ),
+  nrow = n_groups * n_cells_per_group,
+  ncol = n_genes
+)
+colnames(count_real_data) <- genes
+
+group_real_data <- rep(
+  x = groups,
+  each = n_cells_per_group
+)
+cell_names <- paste0("Cell", seq_along(group_real_data))
+rownames(count_real_data) <- cell_names
+names(group_real_data) <- cell_names
+```
+
+`count_real_data` is a cell-by-gene count matrix. `group_real_data` is a named
+character vector with one label per matrix row: `"WT"` denotes wild-type
+cells, and a gene name denotes cells in which that gene is perturbed. The
+vector names must be identical to the count-matrix row names.
+
+# Run GRN-scPerturbSim
+
+```{r run-simulator}
+sim_data <- simulate_grn_guided_expression(
+  d = 2,
+  count = count_real_data,
+  group = group_real_data
+)
+```
+
+The required arguments are:
+
+- `d = 2`: the expected total degree per gene in the simulated DAG, counting
+  both parents and children.
+- `count = count_real_data`: the reference cell-by-gene count matrix.
+- `group = group_real_data`: the reference cell-group labels aligned with the
+  rows of `count_real_data`.
+
+See `?simulate_grn_guided_expression` for optional simulation controls.
+
+# Inspect the simulated dataset
+
+The returned list contains:
+
+- `sim_data$dag`: the ground-truth simulated DAG.
+- `sim_data$coef`: the ground-truth regulatory coefficients.
+- `sim_data$count`: the simulated cell-by-gene count matrix.
+- `sim_data$group`: the group label for each row of `sim_data$count`.
+
+The 10-gene DAG is small enough to inspect directly:
+
+```{r plot-dag, fig.width = 7, fig.height = 5, fig.align = "center"}
+plot(x = sim_data$dag)
+```
+
+The dimensions of the simulated count matrix and the number of cells in each
+group are:
+
+```{r summarize-simulated-data}
+dim(x = sim_data$count)
+table(group = sim_data$group)
+```

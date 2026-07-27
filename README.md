@@ -7,312 +7,95 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**CausalGRN** is a scalable computational framework that infers causal gene regulatory networks (GRNs) and predicts cellular responses to unseen perturbations. It is designed to translate the complex outputs from large-scale single-cell CRISPR screens with scRNA-seq readouts into reliable causal insights.
+**CausalGRN** is an R package for inferring causal gene regulatory networks
+(GRNs) and predicting cellular responses to unseen perturbations from
+single-cell CRISPR screens with scRNA-seq readouts.
 
 ## Overview
 
-Large-scale single-cell CRISPR screens provide critical data to map causal GRNs. However, analyzing this data to extract reliable causal relationships is a major challenge. CausalGRN addresses this by:
+CausalGRN:
 
-1.  **Mitigating Spurious Partial Correlations**: It employs a novel adaptive thresholding correction to reduce the impact of pervasive spurious partial correlations found in sparse scRNA-seq data, enabling a more robust inference of the network's undirected skeleton.
-2.  **Orienting the Network**: It orients the graph using observed perturbation outcomes from CRISPR screens.
-3.  **Predicting Perturbation Effects**: The resulting directed GRN can be used to predict the downstream effects of novel, unseen perturbations via network propagation.
+1. infers an undirected network skeleton while reducing spurious partial
+   correlations in sparse scRNA-seq data;
+2. orients network edges using observed perturbation effects; and
+3. uses the directed network to predict downstream responses to new
+   perturbations.
 
-Across both simulations and diverse experimental datasets, CausalGRN substantially outperforms existing approaches in network reconstruction accuracy and in predicting the effects of unseen perturbations.
+The package also provides GRN-scPerturbSim, a reference-data-guided simulator
+for generating single-cell perturbation data under a synthetic GRN.
 
 ## Installation
 
-You can install the development version of CausalGRN from GitHub with:
+Install the development version from GitHub:
 
 ```r
 # Bioconductor dependencies
-if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
-BiocManager::install(c("graph", "RBGL"))
+if (!requireNamespace(package = "BiocManager", quietly = TRUE)) {
+  install.packages(pkgs = "BiocManager")
+}
+BiocManager::install(pkgs = c("graph", "RBGL"))
 
-# install.packages("devtools")
-devtools::install_github("yub-hutch/CausalGRN")
+# CausalGRN
+if (!requireNamespace(package = "devtools", quietly = TRUE)) {
+  install.packages(pkgs = "devtools")
+}
+devtools::install_github(repo = "yub-hutch/CausalGRN")
 ```
 
-## Example Usage
+## Tutorials
 
-Here is a toy example demonstrating a complete CausalGRN workflow. We will:
-1.  Simulate a dataset with wild-type cells and three different gene knockdowns.
-2.  Use a subset of the data (wild-type and one knockdown) to infer a causal GRN and compare the result to other common methods.
-3.  Use the inferred GRN to build a predictive model.
-4.  Use the model to predict the effects of the other two knockdowns that were not used for training.
+- [Quick start](tutorials/quick-start.Rmd)
+  ([rendered HTML](tutorials/quick-start.html)): simulate a transparent
+  three-gene example, infer a causal GRN, compare baseline methods, and
+  predict perturbation effects.
+- [Real-data RPE1 workflow](tutorials/real-data-rpe1.Rmd)
+  ([rendered HTML](tutorials/real-data-rpe1.html)): infer a
+  gene-program-aware network from a prepared Perturb-seq subset and predict
+  and evaluate effects for three target genes.
+- [GRN-scPerturbSim](tutorials/grn-scperturbsim.Rmd)
+  ([rendered HTML](tutorials/grn-scperturbsim.html)): prepare the required
+  reference input, run the simulator, and inspect its outputs.
 
-### 0. Setup and Data Simulation
+## Input structure
 
-First, let's load the necessary libraries and define our simulation parameters. We will create a dataset with wild-type (WT) cells and cells with knockdowns for genes 'A', 'B', and 'C' based on the ground truth network `A -> B -> C`.
+The core workflow uses three aligned inputs:
 
-```r
-# --- 0. SETUP & DATA SIMULATION ---
-library(dplyr)
-library(igraph)
-library(CausalGRN)
+- `count`: a cell-by-gene count matrix with cell and gene names;
+- `Y`: a processed cell-by-gene expression matrix with the same rows and
+  genes as `count`; and
+- `group`: a named character vector with one label per cell. Use `"WT"` for
+  wild-type cells and the perturbed gene name for perturbed cells. Its names
+  must match the row names of the expression matrices.
 
-# Define all simulation parameters upfront
-a <- b <- 1
-sd <- 2
-s <- -4
-nwt <- 1e5
-npt <- 1e4
-knockdown_efficacy <- 0.9 # 90% knockdown efficiency
-
-# Define the ground truth graph for this simulation
-ground_truth <- igraph::make_graph(~ A -+ B, B -+ C)
-E(ground_truth)$weight <- c(a, b)
-
-# --- Simulate Data ---
-set.seed(123)
-
-# Generate Wild-Type (WT) Data
-x_latent_wt <- rnorm(nwt, 0, sd)
-y_latent_wt <- rnorm(nwt, a * x_latent_wt + s, sd)
-z_latent_wt <- rnorm(nwt, b * (y_latent_wt - s), sd)
-wt_counts <- cbind(
-  A = rpois(nwt, exp(x_latent_wt)),
-  B = rpois(nwt, exp(y_latent_wt)),
-  C = rpois(nwt, exp(z_latent_wt))
-)
-
-# Generate Perturb-A Data
-x_latent_kdA <- rnorm(npt, 0, sd) + log(1 - knockdown_efficacy)
-y_latent_kdA <- rnorm(npt, a * x_latent_kdA + s, sd)
-z_latent_kdA <- rnorm(npt, b * (y_latent_kdA - s), sd)
-kdA_counts <- cbind(
-  A = rpois(npt, exp(x_latent_kdA)),
-  B = rpois(npt, exp(y_latent_kdA)),
-  C = rpois(npt, exp(z_latent_kdA))
-)
-
-# Generate Perturb-B Data
-x_latent_kdB <- rnorm(npt, 0, sd)
-y_latent_kdB <- rnorm(npt, a * x_latent_kdB + s, sd) + log(1 - knockdown_efficacy)
-z_latent_kdB <- rnorm(npt, b * (y_latent_kdB - s), sd)
-kdB_counts <- cbind(
-  A = rpois(npt, exp(x_latent_kdB)),
-  B = rpois(npt, exp(y_latent_kdB)),
-  C = rpois(npt, exp(z_latent_kdB))
-)
-
-# Generate Perturb-C Data
-x_latent_kdC <- rnorm(npt, 0, sd)
-y_latent_kdC <- rnorm(npt, a * x_latent_kdC + s, sd)
-z_latent_kdC <- rnorm(npt, b * (y_latent_kdC - s), sd) + log(1 - knockdown_efficacy)
-kdC_counts <- cbind(
-  A = rpois(npt, exp(x_latent_kdC)),
-  B = rpois(npt, exp(y_latent_kdC)),
-  C = rpois(npt, exp(z_latent_kdC))
-)
-
-# --- Combine and Prepare Inputs ---
-count <- rbind(wt_counts, kdA_counts, kdB_counts, kdC_counts)
-group <- c(rep('WT', nwt), rep('A', npt), rep('B', npt), rep('C', npt))
-rownames(count) <- paste0("cell", seq_len(nrow(count)))
-names(group) <- rownames(count)
-Y <- scale(log1p(count), center = TRUE, scale = TRUE)
-```
-
-Now that we have our simulated data, we can proceed with the CausalGRN workflow.
-
-### 1. Inferring a Causal GRN
-
-For network inference, we will pretend we only have access to the wild-type data and the data from the perturbation of gene 'A'. We will use this subset to infer the network structure with `CausalGRN`.
-
-```r
-# --- 1. Infer GRN from a subset of data (WT and Perturb-A) ---
-cat("Running CausalGRN to infer the network...\n")
-train_idx <- which(group %in% c('WT', 'A'))
-
-# Infer the graph using the training data
-skel <- infer_skeleton(count[train_idx, ], Y[train_idx, ], alpha = 0.05, min_abspcor = 0, ncores = 1)
-stat <- calc_perturbation_effect(Y[train_idx, ], group[train_idx], ncores = 1)
-inferred_graph <- infer_causalgrn(skel$graph, stat, alpha = 0.05, max_order = 2)
-
-cat("CausalGRN inferred graph:\n")
-print(inferred_graph)
-```
-
-The plot below shows how the output of CausalGRN compares to other GRN inference methods. For the simple chain `A -> B -> C`, CausalGRN correctly identifies the causal structure, while other methods may infer incorrect edges or directions.
-
-<p align="center">
-  <img src="man/figures/illustration.png" alt="CausalGRN Illustration" width="500"/>
-</p>
-
-<details>
-<summary>Click to see the code for running other common GRN inference methods for comparison</summary>
-
-Note that the following methods are not part of the core CausalGRN algorithm but are included in the package as wrappers for convenient benchmarking. Here is how you could run them on the same dataset.
-
-```r
-# --- Compare with other common GRN inference methods ---
-cat("Running other GRN methods for comparison...\n")
-
-# Prepare data subsets for baseline methods
-# Observational methods are typically run on wild-type data
-wt <- Y[group == 'WT', ]
-# Interventional methods can use a list of perturbed data
-pts <- list(
-  A = Y[group == 'A', ]
-)
-
-# Observational method: PC Algorithm (on WT data)
-graph_pc <- run_pc(wt, alpha = 0.05)
-
-# Observational method: GES (on WT data)
-graph_ges <- run_ges(wt)
-
-# Interventional method: GIES (uses perturbation data)
-graph_gies <- run_gies(wt, pts)
-
-# Observational method: Lasso (on WT data)
-graph_lasso_wt <- run_lasso(wt, ncores = 1)
-
-# Interventional method: Lasso (on all data)
-graph_lasso_all <- run_lasso(Y, ncores = 1)
-
-# Observational method: GENIE3 (on WT data)
-graph_genie3 <- run_genie3(wt, ncores = 1)
-
-# GRNBoost2 (requires Python environment)
-# For this example, we assume pre-computed results
-# graph_grnboost2 <- ...
-```
-</details>
-
-### 2. Predicting Effects of Unseen Perturbations
-
-Now, using the `inferred_graph` from the previous step, we will fit an expression model. We will train the model on the same data we used for inference (WT and Perturb-A) and then predict the effects for the held-out, unseen perturbations of 'B' and 'C'.
-
-```r
-# --- 2. Fit model and predict effects for unseen perturbations ---
-cat("Fitting expression model...\n")
-B_fit <- fit_expression_model(
-  Y[train_idx, ],
-  group[train_idx],
-  graph = inferred_graph,
-  ncores = 1,
-  method = 'lm'
-)
-
-# --- Predict effects for B and C knockdown ---
-cat("Predicting effects for held-out perturbations...\n")
-# We need the mean expression of the perturbed gene in the knockdown cells,
-# and the mean expression in the WT cells.
-wt_expressions <- colMeans(Y[group == 'WT', ])
-knockdown_expressions <- c(
-  'B' = mean(Y[group == 'B', 'B']),
-  'C' = mean(Y[group == 'C', 'C'])
-)
-
-# Predict the delta (change from WT) for all genes
-pred_effects <- predict_perturbation_effect(B_fit, knockdown_expressions, wt_expressions)
-
-cat("Predicted effects matrix:\n")
-print(pred_effects)
-
-
-# --- 3. Visualize the predicted effects ---
-# Convert matrix to data frame for plotting and create the heatmap
-plot_df <- as.data.frame(as.table(pred_effects))
-names(plot_df) <- c("Perturbation", "Gene", "Effect")
-
-ggplot2::ggplot(plot_df, ggplot2::aes(x = Gene, y = Perturbation, fill = Effect)) +
-  ggplot2::geom_tile(color = "white") +
-  ggplot2::scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  ggplot2::theme_minimal() +
-  ggplot2::labs(title = "Predicted Effects of Gene Knockdowns", fill = "Effect")
-```
-
-The plot below is the output of this prediction example. It shows the predicted effects of knocking down genes 'B' and 'C'. As expected from the ground truth graph `A -> B -> C`, knocking down 'B' affects both 'B' and 'C', while knocking down 'C' only affects 'C'.
-
-<p align="center">
-  <img src="man/figures/Predicted_effect.png" alt="Predicted Effect Plot" width="400"/>
-</p>
-
-## GRN-scPerturbSim: Simulation Framework
-
-`GRN-scPerturbSim` is a simulation framework to generate realistic single-cell CRISPR screen data, provided as part of the `CausalGRN` R package. It uses a real single-cell perturbation dataset as a reference to generate a simulated count matrix guided by a synthetic Gene Regulatory Network (GRN). While developed for testing `CausalGRN`, it is an independent tool that can be used to benchmark any GRN inference method.
-
-Here is an example of how to use the simulation function:
-
-```r
-# --- GRN-scPerturbSim Simulation Example ---
-
-# The simulation function `simulate_grn_guided_expression` requires a real single-cell
-# count matrix (count) and cell group labels (group) to learn data properties from.
-# For this example, we will first generate a toy dataset to serve as this input.
-# In a real use case, you would load your own experimental data here.
-
-set.seed(42)
-n_genes <- 10
-n_cells_per_group <- 50
-genes <- paste0("Gene", 1:n_genes)
-kos <- c("Gene1", "Gene2")
-groups <- c("WT", kos)
-n_groups <- length(groups)
-
-# 1. Create a toy count matrix `count` and `group` vector.
-# In your work, replace this with your actual scRNA-seq count matrix and cell labels.
-count_real_data <- matrix(
-  rpois(n_groups * n_cells_per_group * n_genes, lambda = 10),
-  nrow = n_groups * n_cells_per_group,
-  ncol = n_genes
-)
-colnames(count_real_data) <- genes
-
-group_real_data <- rep(groups, each = n_cells_per_group)
-cell_names <- paste0("Cell", 1:length(group_real_data))
-rownames(count_real_data) <- cell_names
-names(group_real_data) <- cell_names
-
-# 2. Run the GRN-guided simulation using the toy data as input.
-sim_data <- simulate_grn_guided_expression(d = 2, count = count_real_data, group = group_real_data)
-
-# The output contains the simulated graph, coefficients, and new count data.
-cat("Simulated DAG:\n")
-print(sim_data$dag)
-
-# You can plot the simulated graph.
-# plot(sim_data$dag)
-
-# The new simulated count matrix is in sim_data$count.
-# The new group labels are in sim_data$group.
-```
-
-This will generate a new dataset (`sim_data$count` and `sim_data$group`) based on the properties of the input `count_real_data` matrix, following the causal structure of the randomly generated `sim_data$dag`.
+The quick-start tutorial demonstrates the standard workflow with
+`infer_skeleton()`, `calc_perturbation_effect()`, `infer_causalgrn()`,
+`fit_expression_model()`, and `predict_perturbation_effect()`. The real-data
+tutorial explains the corresponding gene-program-aware workflow.
 
 ## Citation
 
-If you use CausalGRN in your research, please cite our paper:
+If you use CausalGRN, please cite:
 
-> Bo Yu, Dingyu Liu, Guanghao Qi, Danwei Huangfu, Li Hsu, Ali Shojaie, Wei Sun. [**CausalGRN: deciphering causal gene regulatory networks from single-cell CRISPR screens**](https://www.biorxiv.org/content/10.64898/2025.12.30.692369v1). bioRxiv 2025.12.30.692369; doi: https://doi.org/10.64898/2025.12.30.692369
-
+> Bo Yu, Dingyu Liu, Guanghao Qi, Danwei Huangfu, Li Hsu, Ali Shojaie, Wei Sun.
+> [**CausalGRN: deciphering causal gene regulatory networks from single-cell
+> CRISPR screens**](https://www.biorxiv.org/content/10.64898/2025.12.30.692369v1).
+> bioRxiv 2025.12.30.692369; doi:
+> https://doi.org/10.64898/2025.12.30.692369
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License; see
+[LICENSE.md](LICENSE.md).
 
-## Software Checklist Notes
+## Software notes
 
-### Tested environments
+- **Tested environments:** macOS 26.3.1 (25D2128) with R 4.4.1; Ubuntu
+  18.04.6 LTS (Bionic Beaver) with R 4.3.2; and Windows 24H2 with R 4.3.1.
+- **Hardware:** no non-standard hardware is required.
+- **Installation time:** installing the package locally took about 5 seconds
+  on the tested macOS system after dependencies were installed.
+- **Quick-start runtime:** the core workflow took about 0.5 seconds on the
+  tested macOS system, excluding package installation and plotting. Runtime
+  varies across systems.
 
-CausalGRN has been tested with:
-
-- macOS 26.3.1 (25D2128) with R 4.4.1
-- Ubuntu 18.04.6 LTS (Bionic Beaver) with R 4.3.2
-- Windows 24H2 with R 4.3.1
-
-Package dependencies are listed in `DESCRIPTION`.
-
-### Hardware requirements
-
-No non-standard hardware is required.
-
-### Installation time
-
-In our tested macOS environment, local installation of the package itself took about 5 seconds after dependencies were already installed. First-time installation may take longer because required dependencies may need to be installed separately.
-
-### Demo runtime
-
-In our tested macOS environment, the core example workflow in this README completed in about 0.5 seconds, excluding package installation and plotting. Runtime will vary across systems.
+Package dependencies are listed in [`DESCRIPTION`](DESCRIPTION).
