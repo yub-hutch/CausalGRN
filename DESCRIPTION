@@ -28,11 +28,14 @@ Imports:
     igraph,
     iterpc,
     matrixTests,
+    methods,
     parallel,
     pbapply,
     pbmcapply,
     pcalg,
     ppcor,
+    stats,
+    utils,
     WGCNA,
     graph
 Suggests:

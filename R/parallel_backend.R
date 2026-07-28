@@ -39,11 +39,15 @@
   pids <- try(unlist(parallel::clusterCall(cl, base::Sys.getpid)), silent = TRUE)
 
   .stop_cluster <- function(cl, pids = NULL, hard = FALSE) {
+    if (!isTRUE(hard)) {
+      try(parallel::stopCluster(cl), silent = TRUE)
+      return(invisible(TRUE))
+    }
+
     for (node in cl) {
-      try(parallel::sendData(node, list(type = "DONE", data = NULL, tag = NULL)), silent = TRUE)
       try(close(node$con), silent = TRUE)
     }
-    if (isTRUE(hard) && is.numeric(pids)) {
+    if (is.numeric(pids)) {
       for (pid in pids) {
         try(tools::pskill(pid), silent = TRUE)
       }
