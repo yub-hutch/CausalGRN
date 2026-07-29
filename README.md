@@ -99,3 +99,8 @@ This project is licensed under the MIT License; see
   varies across systems.
 
 Package dependencies are listed in [`DESCRIPTION`](DESCRIPTION).
+
+## Manuscript code
+
+Scripts for the main analyses in the manuscript are available in the
+[CausalGRN manuscript-code repository](https://github.com/yub-hutch/CausalGRN-manuscript-code).
